@@ -10,7 +10,7 @@ from datetime import datetime
 from sqlalchemy import Column, Integer, String, Float, Boolean, ForeignKey, DateTime, Text
 from sqlalchemy.orm import relationship
 
-from .database import Base
+from backend.database import Base
 
 
 class User(Base):

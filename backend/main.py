@@ -79,7 +79,7 @@ class MarketCreateRequest(BaseModel):
 class BetRequest(BaseModel):
     user_id: int = Field(..., example=1)
     market_id: int = Field(..., example=1)
-    side: str = Field(..., regex="^(YES|NO|yes|no)$", example="YES")
+    side: str = Field(..., pattern="^(YES|NO|yes|no)$", example="YES")
     amount: float = Field(..., gt=0.0, example=5.0)
 
 
