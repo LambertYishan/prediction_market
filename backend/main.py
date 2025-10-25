@@ -358,3 +358,8 @@ def get_user(user_id: int, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     return UserResponse(id=user.id, username=user.username, balance=user.balance)
+
+
+@app.get("/")
+def root():
+    return {"message": "Prediction Market API is running!"}
