@@ -4,7 +4,7 @@
 // meaning that API calls will be relative to the current origin. If you
 // deploy your backend on a different domain (e.g. Render), update this
 // constant accordingly, e.g. 'https://your-backend.onrender.com'.
-const apiBase = '';
+const apiBase = 'https://prediction-market-wy1h.onrender.com';
 
 /**
  * Update the user greeting in the navigation bar.
