@@ -85,7 +85,7 @@ class BetRequest(BaseModel):
 
 class ResolveRequest(BaseModel):
     market_id: int = Field(..., example=1)
-    outcome: str = Field(..., regex="^(YES|NO|yes|no)$", example="YES")
+    outcome: str = Field(..., pattern="^(YES|NO|yes|no)$", example="YES")
 
 
 class UserResponse(BaseModel):
