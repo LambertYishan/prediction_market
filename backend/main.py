@@ -16,9 +16,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from database import Base, engine, get_db
-from models import User, Market, Bet
-from market_logic import cost_for_shares, price_yes, price_no
+from backend.database import Base, engine, get_db
+from backend.models import User, Market, Bet
+from backend.market_logic import cost_for_shares, price_yes, price_no
 
 import hashlib
 
