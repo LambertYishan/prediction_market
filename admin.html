@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Panel</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header>
+    <h1>Admin Panel</h1>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="admin.html">Admin</a>
+      <a href="login.html" id="login-link">Login / Register</a>
+      <span id="user-greeting" class="hidden"></span>
+    </nav>
+  </header>
+
+  <main>
+    <section>
+      <h2>Create Market</h2>
+      <div id="market-create-message"></div>
+      <form id="create-market-form">
+        <label>
+          Title:
+          <input type="text" id="market-title" name="title" required>
+        </label>
+        <label>
+          Description:
+          <textarea id="market-description" name="description" rows="3"></textarea>
+        </label>
+        <label>
+          Liquidity (b):
+          <input type="number" id="market-liquidity" name="liquidity" min="1" step="1" value="100">
+        </label>
+        <button type="submit">Create Market</button>
+      </form>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      updateUserGreeting();
+      const form = document.getElementById('create-market-form');
+      form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const title = document.getElementById('market-title').value;
+        const description = document.getElementById('market-description').value;
+        const liquidity = parseFloat(document.getElementById('market-liquidity').value);
+        try {
+          const res = await fetch(apiBase + '/markets', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, description, liquidity })
+          });
+          if (!res.ok) {
+            const err = await res.json();
+            document.getElementById('market-create-message').textContent = err.detail || 'Error creating market';
+            return;
+          }
+          const market = await res.json();
+          document.getElementById('market-create-message').textContent = 'Market created with ID ' + market.id;
+          form.reset();
+        } catch (err) {
+          document.getElementById('market-create-message').textContent = 'Request failed';
+        }
+      });
+    });
+  </script>
+</body>
+</html>

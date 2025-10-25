@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login / Register</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header>
+    <h1>Login / Register</h1>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="admin.html">Admin</a>
+      <a href="login.html">Login / Register</a>
+    </nav>
+  </header>
+
+  <main>
+    <section>
+      <h2>Login</h2>
+      <div id="login-message"></div>
+      <form id="login-form">
+        <label>
+          Username:
+          <input type="text" id="login-username" required>
+        </label>
+        <label>
+          Password:
+          <input type="password" id="login-password" required>
+        </label>
+        <button type="submit">Log In</button>
+      </form>
+    </section>
+
+    <section>
+      <h2>Register</h2>
+      <div id="register-message"></div>
+      <form id="register-form">
+        <label>
+          Username:
+          <input type="text" id="register-username" required>
+        </label>
+        <label>
+          Password:
+          <input type="password" id="register-password" required>
+        </label>
+        <button type="submit">Register</button>
+      </form>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const loginForm = document.getElementById('login-form');
+      loginForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const username = document.getElementById('login-username').value;
+        const password = document.getElementById('login-password').value;
+        try {
+          const res = await fetch(apiBase + '/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+          });
+          if (!res.ok) {
+            const err = await res.json();
+            document.getElementById('login-message').textContent = err.detail || 'Login failed';
+            return;
+          }
+          const data = await res.json();
+          // Save user info in localStorage
+          localStorage.setItem('user_id', data.id);
+          localStorage.setItem('username', data.username);
+          localStorage.setItem('balance', data.balance);
+          document.getElementById('login-message').textContent = 'Logged in successfully';
+          // Redirect back to home after a short delay
+          setTimeout(() => { window.location.href = 'index.html'; }, 500);
+        } catch (err) {
+          document.getElementById('login-message').textContent = 'Request failed';
+        }
+      });
+
+      const registerForm = document.getElementById('register-form');
+      registerForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const username = document.getElementById('register-username').value;
+        const password = document.getElementById('register-password').value;
+        try {
+          const res = await fetch(apiBase + '/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+          });
+          if (!res.ok) {
+            const err = await res.json();
+            document.getElementById('register-message').textContent = err.detail || 'Registration failed';
+            return;
+          }
+          const data = await res.json();
+          document.getElementById('register-message').textContent = 'Registered successfully. Please log in.';
+          registerForm.reset();
+        } catch (err) {
+          document.getElementById('register-message').textContent = 'Request failed';
+        }
+      });
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Market Details</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header>
+    <h1>Market Details</h1>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="admin.html">Admin</a>
+      <a href="login.html" id="login-link">Login / Register</a>
+      <span id="user-greeting" class="hidden"></span>
+    </nav>
+  </header>
+
+  <main>
+    <section id="market-container">
+      <!-- Market details will be injected here -->
+    </section>
+    <section id="bet-container" class="hidden">
+      <h2>Place a Bet</h2>
+      <div id="bet-message"></div>
+      <form id="bet-form">
+        <label>
+          Amount (shares):
+          <input type="number" id="bet-amount" name="amount" step="0.01" min="0.01" required>
+        </label>
+        <div>
+          <label><input type="radio" name="side" value="YES" checked> YES</label>
+          <label><input type="radio" name="side" value="NO"> NO</label>
+        </div>
+        <button type="submit">Place Bet</button>
+      </form>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      updateUserGreeting();
+      loadMarketDetails();
+    });
+  </script>
+</body>
+</html>
