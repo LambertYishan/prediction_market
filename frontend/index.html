@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Prediction Markets</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header>
+    <h1>Prediction Markets</h1>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="admin.html">Admin</a>
+      <a href="login.html" id="login-link">Login / Register</a>
+      <span id="user-greeting" class="hidden"></span>
+    </nav>
+  </header>
+
+  <main>
+    <section id="markets-section">
+      <h2>Available Markets</h2>
+      <div id="market-list" class="market-list"></div>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+  <script>
+    // On page load fetch markets and update user greeting
+    document.addEventListener('DOMContentLoaded', function() {
+      updateUserGreeting();
+      loadMarkets();
+    });
+  </script>
+</body>
+</html>
