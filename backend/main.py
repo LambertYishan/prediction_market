@@ -216,7 +216,9 @@ def list_markets(db: Session = Depends(get_db)):
             resolved=m.resolved,
             outcome=m.outcome,
             price_yes=p_yes,
-            price_no=p_no
+            price_no=p_no,
+            created_at=m.created_at,
+            expires_at=m.expires_at     # ← ADD THIS LINE
         ))
     return response
 
