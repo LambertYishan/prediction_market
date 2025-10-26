@@ -183,12 +183,16 @@ async function loadMarketDetails() {
     } else {
       betContainer.classList.add('hidden');
     }
+
+    // ✅ FIX HERE: return inside try block
+    return market;
+
   } catch (err) {
     container.textContent = 'Error loading market';
+    return null;
   }
-  return market;
-
 }
+
 
 // =============================================================
 // Admin utility functions
