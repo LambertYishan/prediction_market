@@ -9,6 +9,8 @@ and markets with their bets.
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, Float, Boolean, ForeignKey, DateTime, Text
 from sqlalchemy.orm import relationship
+from datetime import datetime, timezone
+
 
 from backend.database import Base
 
@@ -37,7 +39,8 @@ class Market(Base):
 
     Each market tracks the amount of YES and NO shares outstanding along with
     a liquidity parameter ``b`` used in the LMSR cost function. Markets may
-    be unresolved or resolved to a particular outcome.
+    be unresolved or resolved to a particular outcome. Expiration and creation
+    timestamps are included for filtering and tracking.
     """
 
     __tablename__ = "markets"
@@ -51,6 +54,10 @@ class Market(Base):
     liquidity = Column(Float, default=100.0, nullable=False)
     resolved = Column(Boolean, default=False, nullable=False)
     outcome = Column(String, nullable=True)  # 'YES', 'NO' or None
+
+    # 🆕 Added timestamps
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    expires_at = Column(DateTime, nullable=True)
 
     bets = relationship("Bet", back_populates="market")
 
@@ -73,7 +80,7 @@ class Bet(Base):
     amount = Column(Float, nullable=False)  # Number of shares purchased
     price = Column(Float, nullable=False)   # Price per share at purchase
     total_cost = Column(Float, nullable=False)  # Total cost of the bet
-    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
+    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
     user = relationship("User", back_populates="bets")
     market = relationship("Market", back_populates="bets")

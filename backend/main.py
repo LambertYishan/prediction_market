@@ -22,6 +22,14 @@ from backend.market_logic import cost_for_shares, price_yes, price_no
 
 import hashlib
 
+import os
+from datetime import datetime
+from dotenv import load_dotenv
+
+load_dotenv()
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "lambert")  # fallback if .env missing
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "predictionmarket123")
+
 
 # Create database tables. In production you may want to manage migrations
 # separately using Alembic, but for a quick start this is convenient.
@@ -56,6 +64,15 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a password against its SHA‑256 hash."""
     return get_password_hash(plain_password) == hashed_password
 
+def verify_admin(username: str, password: str):
+    """Check if provided credentials match the single admin account."""
+    if username != ADMIN_USERNAME or password != ADMIN_PASSWORD:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required"
+        )
+
+
 
 # Pydantic models for request and response bodies. These enforce input
 # validation and generate API documentation automatically.
@@ -74,6 +91,10 @@ class MarketCreateRequest(BaseModel):
     title: str = Field(..., example="Will it rain tomorrow?")
     description: Optional[str] = Field(None, example="Weather forecast for New York City.")
     liquidity: Optional[float] = Field(None, example=100.0)
+    expires_at: Optional[datetime] = Field(None, example="2025-12-31T23:59:00Z")
+    admin_username: str
+    admin_password: str
+
 
 
 class BetRequest(BaseModel):
@@ -107,6 +128,8 @@ class MarketResponse(BaseModel):
     outcome: Optional[str]
     price_yes: float
     price_no: float
+    created_at: Optional[datetime] = None
+    expires_at: Optional[datetime] = None
     class Config:
         orm_mode = True
 
@@ -167,7 +190,11 @@ def list_markets(db: Session = Depends(get_db)):
     Prices are computed on the fly using the LMSR cost function. For each
     market the YES and NO probabilities are added to the response.
     """
-    markets = db.query(Market).all()
+    now = datetime.utcnow()
+    markets = db.query(Market).filter(
+        (Market.expires_at == None) | (Market.expires_at > now)
+    ).all()
+
     response = []
     for m in markets:
         b = m.liquidity
@@ -196,11 +223,9 @@ def list_markets(db: Session = Depends(get_db)):
 
 @app.post("/markets", response_model=MarketResponse, status_code=status.HTTP_201_CREATED)
 def create_market(request: MarketCreateRequest, db: Session = Depends(get_db)):
-    """Create a new market. Only an admin should call this in practice.
+    """Create a new market. Only an admin can create or modify markets."""
+    verify_admin(request.admin_username, request.admin_password)
 
-    Accepts a title, optional description and optional liquidity parameter.
-    Returns the full market details including computed initial prices.
-    """
     liquidity = request.liquidity if request.liquidity and request.liquidity > 0 else 100.0
     market = Market(
         title=request.title,
@@ -209,14 +234,12 @@ def create_market(request: MarketCreateRequest, db: Session = Depends(get_db)):
         yes_shares=0.0,
         no_shares=0.0,
         resolved=False,
-        outcome=None
+        outcome=None,
+        expires_at=request.expires_at
     )
     db.add(market)
     db.commit()
     db.refresh(market)
-    # Compute initial prices (both 0.5 for a balanced LMSR)
-    p_yes = 0.5
-    p_no = 0.5
     return MarketResponse(
         id=market.id,
         title=market.title,
@@ -226,9 +249,21 @@ def create_market(request: MarketCreateRequest, db: Session = Depends(get_db)):
         liquidity=market.liquidity,
         resolved=market.resolved,
         outcome=market.outcome,
-        price_yes=p_yes,
-        price_no=p_no
+        price_yes=0.5,
+        price_no=0.5
     )
+
+@app.delete("/markets/{market_id}")
+def delete_market(market_id: int, username: str, password: str, db: Session = Depends(get_db)):
+    """Allow the admin to delete a market entirely."""
+    verify_admin(username, password)
+    market = db.query(Market).filter(Market.id == market_id).first()
+    if not market:
+        raise HTTPException(status_code=404, detail="Market not found")
+    db.delete(market)
+    db.commit()
+    return {"detail": f"Market {market_id} deleted successfully"}
+
 
 
 @app.post("/bet", response_model=BetResponse)
