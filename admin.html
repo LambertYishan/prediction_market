@@ -85,7 +85,7 @@
             <th>Expires</th>
             <th>Resolved</th>
             <th>Outcome</th>
-            <th>Action</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -158,6 +158,7 @@
         const username = document.getElementById('delete-admin-username').value;
         const password = document.getElementById('delete-admin-password').value;
         await deleteMarketAdmin(marketId, username, password);
+        loadMarketsAdmin();
       });
 
       // =============================================================
@@ -195,12 +196,15 @@
             <td>${expires}</td>
             <td>${m.resolved ? '✅' : '❌'}</td>
             <td>${m.outcome || '—'}</td>
-            <td><button class="delete-btn" data-id="${m.id}">Delete</button></td>
+            <td>
+              <button class="delete-btn" data-id="${m.id}">Delete</button>
+              ${!m.resolved ? `<button class="resolve-btn" data-id="${m.id}">Resolve</button>` : ''}
+            </td>
           `;
           tableBody.appendChild(tr);
         });
 
-        // Add inline delete listeners
+        // Inline delete listeners
         document.querySelectorAll('.delete-btn').forEach(btn => {
           btn.addEventListener('click', async (e) => {
             const id = e.target.getAttribute('data-id');
@@ -212,6 +216,21 @@
             }
           });
         });
+
+        // Inline resolve listeners
+        document.querySelectorAll('.resolve-btn').forEach(btn => {
+          btn.addEventListener('click', async (e) => {
+            const id = e.target.getAttribute('data-id');
+            const outcome = prompt("Enter outcome (YES or NO):");
+            if (!outcome || !["YES", "NO"].includes(outcome.toUpperCase())) {
+              alert("Invalid outcome. Must be 'YES' or 'NO'.");
+              return;
+            }
+            await resolveMarketAdmin(id, outcome.toUpperCase());
+            loadMarketsAdmin();
+          });
+        });
+
       } catch (err) {
         msg.textContent = 'Error loading markets.';
       }
@@ -235,6 +254,27 @@
         msg.textContent = 'Request failed.';
       }
     }
+
+    // =============================================================
+    // Helper: Resolve market via API
+    // =============================================================
+    async function resolveMarketAdmin(marketId, outcome) {
+      try {
+        const res = await fetch(apiBase + '/resolve', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ market_id: parseInt(marketId), outcome })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          alert(`✅ Market ${marketId} resolved as ${outcome}`);
+        } else {
+          alert(data.detail || 'Error resolving market');
+        }
+      } catch (err) {
+        alert('Request failed while resolving market.');
+      }
+    }
   </script>
 
   <style>
@@ -251,16 +291,25 @@
     .admin-table th {
       background-color: #f3f3f3;
     }
-    .delete-btn {
-      background-color: #e74c3c;
-      color: white;
+    .delete-btn, .resolve-btn {
+      margin-right: 5px;
       border: none;
       padding: 5px 10px;
-      cursor: pointer;
+      color: white;
       border-radius: 4px;
+      cursor: pointer;
+    }
+    .delete-btn {
+      background-color: #e74c3c;
     }
     .delete-btn:hover {
       background-color: #c0392b;
+    }
+    .resolve-btn {
+      background-color: #3498db;
+    }
+    .resolve-btn:hover {
+      background-color: #2c80b4;
     }
   </style>
 </body>
