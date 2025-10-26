@@ -23,7 +23,7 @@ from backend.market_logic import cost_for_shares, price_yes, price_no
 import hashlib
 
 import os
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -227,6 +227,8 @@ def create_market(request: MarketCreateRequest, db: Session = Depends(get_db)):
     verify_admin(request.admin_username, request.admin_password)
 
     liquidity = request.liquidity if request.liquidity and request.liquidity > 0 else 100.0
+    expires_at = request.expires_at or datetime.now(timezone.utc) + timedelta(days=1)
+
     market = Market(
         title=request.title,
         description=request.description,
@@ -235,7 +237,7 @@ def create_market(request: MarketCreateRequest, db: Session = Depends(get_db)):
         no_shares=0.0,
         resolved=False,
         outcome=None,
-        expires_at=request.expires_at
+        expires_at=expires_at
     )
     db.add(market)
     db.commit()

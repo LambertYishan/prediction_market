@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Market Details</title>
   <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
   <header>
@@ -19,8 +20,22 @@
 
   <main>
     <section id="market-container">
-      <!-- Market details will be injected here -->
+      <!-- Market details injected here -->
     </section>
+
+    <!-- Countdown Timer -->
+    <section id="countdown-section" class="hidden">
+      <h3>Time Remaining:</h3>
+      <p id="countdown-timer" class="countdown"></p>
+    </section>
+
+    <!-- Line Chart Section -->
+    <section id="chart-section" class="hidden">
+      <h3>Price History</h3>
+      <canvas id="priceChart" width="400" height="200"></canvas>
+    </section>
+
+    <!-- Bet Section -->
     <section id="bet-container" class="hidden">
       <h2>Place a Bet</h2>
       <div id="bet-message"></div>
@@ -40,9 +55,78 @@
 
   <script src="script.js"></script>
   <script>
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', async function() {
       updateUserGreeting();
-      loadMarketDetails();
+      const market = await loadMarketDetails();
+
+      // Countdown setup
+      if (market && market.expires_at) {
+        const countdownSection = document.getElementById('countdown-section');
+        countdownSection.classList.remove('hidden');
+        const endTime = new Date(market.expires_at);
+        const timerEl = document.getElementById('countdown-timer');
+
+        const updateTimer = () => {
+          const diff = endTime - new Date();
+          if (diff <= 0) {
+            timerEl.textContent = "Market closed";
+            clearInterval(timer);
+            return;
+          }
+          const hrs = Math.floor(diff / 1000 / 60 / 60);
+          const mins = Math.floor((diff / 1000 / 60) % 60);
+          const secs = Math.floor((diff / 1000) % 60);
+          timerEl.textContent = `${hrs}h ${mins}m ${secs}s`;
+        };
+        updateTimer();
+        const timer = setInterval(updateTimer, 1000);
+      }
+
+      // Simulated price chart (for now)
+      if (market) {
+        const chartSection = document.getElementById('chart-section');
+        chartSection.classList.remove('hidden');
+
+        const ctx = document.getElementById('priceChart').getContext('2d');
+
+        // Fake data for illustration; replace later with your bet history if desired
+        const labels = ['Start', '1h', '2h', '3h', 'Now'];
+        const yesPrices = [0.5, 0.52, 0.49, 0.55, market.price_yes];
+        const noPrices = yesPrices.map(p => 1 - p);
+
+        new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: [
+              {
+                label: 'YES Price',
+                data: yesPrices,
+                borderColor: 'green',
+                tension: 0.3,
+                fill: false
+              },
+              {
+                label: 'NO Price',
+                data: noPrices,
+                borderColor: 'red',
+                tension: 0.3,
+                fill: false
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            scales: {
+              y: {
+                min: 0,
+                max: 1,
+                title: { display: true, text: 'Price (0–1)' }
+              }
+            }
+          }
+        });
+      }
     });
   </script>
 </body>
