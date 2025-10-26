@@ -34,45 +34,7 @@
           Liquidity (b):
           <input type="number" id="market-liquidity" name="liquidity" min="1" step="1" value="100">
         </label>
-
-        <!-- 🆕 Admin Credentials -->
-        <label>
-          Admin Username:
-          <input type="text" id="admin-username" name="admin_username" required>
-        </label>
-        <label>
-          Admin Password:
-          <input type="password" id="admin-password" name="admin_password" required>
-        </label>
-
-        <!-- 🆕 Optional Expiry -->
-        <label>
-          Expiry Date (optional):
-          <input type="datetime-local" id="market-expiry" name="expires_at">
-        </label>
-
         <button type="submit">Create Market</button>
-      </form>
-    </section>
-
-    <!-- 🆕 Optional Section: Delete Market -->
-    <section>
-      <h2>Delete Market</h2>
-      <div id="market-delete-message"></div>
-      <form id="delete-market-form">
-        <label>
-          Market ID to Delete:
-          <input type="number" id="delete-market-id" name="market_id" required>
-        </label>
-        <label>
-          Admin Username:
-          <input type="text" id="delete-admin-username" name="admin_username" required>
-        </label>
-        <label>
-          Admin Password:
-          <input type="password" id="delete-admin-password" name="admin_password" required>
-        </label>
-        <button type="submit">Delete Market</button>
       </form>
     </section>
   </main>
@@ -81,63 +43,28 @@
   <script>
     document.addEventListener('DOMContentLoaded', function() {
       updateUserGreeting();
-
-      // CREATE MARKET
-      const createForm = document.getElementById('create-market-form');
-      createForm.addEventListener('submit', async function(e) {
+      const form = document.getElementById('create-market-form');
+      form.addEventListener('submit', async function(e) {
         e.preventDefault();
         const title = document.getElementById('market-title').value;
         const description = document.getElementById('market-description').value;
         const liquidity = parseFloat(document.getElementById('market-liquidity').value);
-        const admin_username = document.getElementById('admin-username').value;
-        const admin_password = document.getElementById('admin-password').value;
-        const expires_at = document.getElementById('market-expiry').value || null;
-
         try {
           const res = await fetch(apiBase + '/markets', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              title, description, liquidity,
-              admin_username, admin_password, expires_at
-            })
+            body: JSON.stringify({ title, description, liquidity })
           });
-
-          const msgEl = document.getElementById('market-create-message');
           if (!res.ok) {
             const err = await res.json();
-            msgEl.textContent = err.detail || 'Error creating market';
+            document.getElementById('market-create-message').textContent = err.detail || 'Error creating market';
             return;
           }
           const market = await res.json();
-          msgEl.textContent = '✅ Market created successfully with ID ' + market.id;
-          createForm.reset();
+          document.getElementById('market-create-message').textContent = 'Market created with ID ' + market.id;
+          form.reset();
         } catch (err) {
           document.getElementById('market-create-message').textContent = 'Request failed';
-        }
-      });
-
-      // DELETE MARKET
-      const deleteForm = document.getElementById('delete-market-form');
-      deleteForm.addEventListener('submit', async function(e) {
-        e.preventDefault();
-        const market_id = parseInt(document.getElementById('delete-market-id').value);
-        const username = document.getElementById('delete-admin-username').value;
-        const password = document.getElementById('delete-admin-password').value;
-
-        try {
-          const url = `${apiBase}/markets/${market_id}?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`;
-          const res = await fetch(url, { method: 'DELETE' });
-          const msgEl = document.getElementById('market-delete-message');
-          if (!res.ok) {
-            const err = await res.json();
-            msgEl.textContent = '❌ ' + (err.detail || 'Error deleting market');
-            return;
-          }
-          msgEl.textContent = `✅ Market ${market_id} deleted successfully`;
-          deleteForm.reset();
-        } catch (err) {
-          document.getElementById('market-delete-message').textContent = 'Request failed';
         }
       });
     });
