@@ -13,11 +13,13 @@
       <a href="index.html">Home</a>
       <a href="admin.html">Admin</a>
       <a href="login.html" id="login-link">Login / Register</a>
+      <a href="#" id="logout-link" class="hidden">Logout</a>
       <span id="user-greeting" class="hidden"></span>
     </nav>
   </header>
 
   <main>
+    <!-- ✅ Create Market -->
     <section>
       <h2>Create Market</h2>
       <div id="market-create-message"></div>
@@ -34,8 +36,63 @@
           Liquidity (b):
           <input type="number" id="market-liquidity" name="liquidity" min="1" step="1" value="100">
         </label>
+        <label>
+          Expires At (optional):
+          <input type="datetime-local" id="market-expires" name="expires_at">
+        </label>
+        <label>
+          Admin Username:
+          <input type="text" id="admin-username" required>
+        </label>
+        <label>
+          Admin Password:
+          <input type="password" id="admin-password" required>
+        </label>
         <button type="submit">Create Market</button>
       </form>
+    </section>
+
+    <!-- ✅ Delete Market -->
+    <section>
+      <h2>Delete Market</h2>
+      <div id="market-delete-message"></div>
+      <form id="delete-market-form">
+        <label>
+          Market ID:
+          <input type="number" id="delete-market-id" required>
+        </label>
+        <label>
+          Admin Username:
+          <input type="text" id="delete-admin-username" required>
+        </label>
+        <label>
+          Admin Password:
+          <input type="password" id="delete-admin-password" required>
+        </label>
+        <button type="submit">Delete Market</button>
+      </form>
+    </section>
+
+    <!-- ✅ List All Markets -->
+    <section>
+      <h2>All Active Markets</h2>
+      <div id="markets-message"></div>
+      <table id="markets-table" class="admin-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Title</th>
+            <th>Expires</th>
+            <th>Resolved</th>
+            <th>Outcome</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Populated dynamically -->
+        </tbody>
+      </table>
+      <button id="refresh-markets">🔄 Refresh List</button>
     </section>
   </main>
 
@@ -43,31 +100,168 @@
   <script>
     document.addEventListener('DOMContentLoaded', function() {
       updateUserGreeting();
-      const form = document.getElementById('create-market-form');
-      form.addEventListener('submit', async function(e) {
+      loadMarketsAdmin();
+
+      // =============================================================
+      // CREATE MARKET
+      // =============================================================
+      const createForm = document.getElementById('create-market-form');
+      createForm.addEventListener('submit', async function(e) {
         e.preventDefault();
         const title = document.getElementById('market-title').value;
         const description = document.getElementById('market-description').value;
         const liquidity = parseFloat(document.getElementById('market-liquidity').value);
+        const expires_at_input = document.getElementById('market-expires').value;
+        const admin_username = document.getElementById('admin-username').value;
+        const admin_password = document.getElementById('admin-password').value;
+
+        const expires_at = expires_at_input
+          ? new Date(expires_at_input).toISOString()
+          : null;
+
         try {
           const res = await fetch(apiBase + '/markets', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title, description, liquidity })
+            body: JSON.stringify({
+              title,
+              description,
+              liquidity,
+              admin_username,
+              admin_password,
+              expires_at
+            })
           });
+          const data = await res.json();
           if (!res.ok) {
-            const err = await res.json();
-            document.getElementById('market-create-message').textContent = err.detail || 'Error creating market';
+            document.getElementById('market-create-message').textContent =
+              data.detail || 'Error creating market';
             return;
           }
-          const market = await res.json();
-          document.getElementById('market-create-message').textContent = 'Market created with ID ' + market.id;
-          form.reset();
+          document.getElementById('market-create-message').textContent =
+            '✅ Market created with ID ' + data.id;
+          createForm.reset();
+          loadMarketsAdmin();
         } catch (err) {
-          document.getElementById('market-create-message').textContent = 'Request failed';
+          document.getElementById('market-create-message').textContent =
+            'Request failed';
         }
       });
+
+      // =============================================================
+      // DELETE MARKET
+      // =============================================================
+      const deleteForm = document.getElementById('delete-market-form');
+      deleteForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const marketId = document.getElementById('delete-market-id').value;
+        const username = document.getElementById('delete-admin-username').value;
+        const password = document.getElementById('delete-admin-password').value;
+        await deleteMarketAdmin(marketId, username, password);
+      });
+
+      // =============================================================
+      // REFRESH MARKETS
+      // =============================================================
+      document.getElementById('refresh-markets').addEventListener('click', loadMarketsAdmin);
     });
+
+    // =============================================================
+    // Helper: Load all markets and render them in table
+    // =============================================================
+    async function loadMarketsAdmin() {
+      const tableBody = document.querySelector('#markets-table tbody');
+      const msg = document.getElementById('markets-message');
+      tableBody.innerHTML = '<tr><td colspan="6">Loading...</td></tr>';
+      try {
+        const res = await fetch(apiBase + '/markets');
+        if (!res.ok) {
+          msg.textContent = 'Failed to load markets.';
+          return;
+        }
+        const markets = await res.json();
+        if (markets.length === 0) {
+          tableBody.innerHTML = '<tr><td colspan="6">No markets found.</td></tr>';
+          return;
+        }
+
+        tableBody.innerHTML = '';
+        markets.forEach(m => {
+          const tr = document.createElement('tr');
+          const expires = m.expires_at ? new Date(m.expires_at).toLocaleString() : '—';
+          tr.innerHTML = `
+            <td>${m.id}</td>
+            <td>${m.title}</td>
+            <td>${expires}</td>
+            <td>${m.resolved ? '✅' : '❌'}</td>
+            <td>${m.outcome || '—'}</td>
+            <td><button class="delete-btn" data-id="${m.id}">Delete</button></td>
+          `;
+          tableBody.appendChild(tr);
+        });
+
+        // Add inline delete listeners
+        document.querySelectorAll('.delete-btn').forEach(btn => {
+          btn.addEventListener('click', async (e) => {
+            const id = e.target.getAttribute('data-id');
+            const username = prompt('Enter admin username:');
+            const password = prompt('Enter admin password:');
+            if (username && password) {
+              await deleteMarketAdmin(id, username, password);
+              loadMarketsAdmin();
+            }
+          });
+        });
+      } catch (err) {
+        msg.textContent = 'Error loading markets.';
+      }
+    }
+
+    // =============================================================
+    // Helper: Delete market via API
+    // =============================================================
+    async function deleteMarketAdmin(marketId, username, password) {
+      const msg = document.getElementById('market-delete-message');
+      try {
+        const url = `${apiBase}/markets/${marketId}?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`;
+        const res = await fetch(url, { method: 'DELETE' });
+        const data = await res.json();
+        if (res.ok) {
+          msg.textContent = data.detail || `✅ Market ${marketId} deleted successfully`;
+        } else {
+          msg.textContent = data.detail || 'Error deleting market';
+        }
+      } catch (err) {
+        msg.textContent = 'Request failed.';
+      }
+    }
   </script>
+
+  <style>
+    .admin-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1em;
+    }
+    .admin-table th, .admin-table td {
+      border: 1px solid #ccc;
+      padding: 6px 10px;
+      text-align: left;
+    }
+    .admin-table th {
+      background-color: #f3f3f3;
+    }
+    .delete-btn {
+      background-color: #e74c3c;
+      color: white;
+      border: none;
+      padding: 5px 10px;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+    .delete-btn:hover {
+      background-color: #c0392b;
+    }
+  </style>
 </body>
 </html>
