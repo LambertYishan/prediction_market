@@ -27,6 +27,7 @@
     <section id="countdown-section" class="hidden">
       <h3>Time Remaining:</h3>
       <p id="countdown-timer" class="countdown"></p>
+      <div id="timezones" class="tz-display"></div>
     </section>
 
     <!-- Line Chart Section -->
@@ -65,6 +66,7 @@
         countdownSection.classList.remove('hidden');
         const endTime = new Date(market.expires_at);
         const timerEl = document.getElementById('countdown-timer');
+        const tzEl = document.getElementById('timezones');
 
         const updateTimer = () => {
           const diff = endTime - new Date();
@@ -80,7 +82,22 @@
         };
         updateTimer();
         const timer = setInterval(updateTimer, 1000);
+
+         // 🌍 Show absolute expiration times in multiple zones
+        const timeOptions = { dateStyle: 'full', timeStyle: 'long' };
+        const timeStrings = [
+          { label: 'New York (EST)', tz: 'America/New_York' },
+          { label: 'London (GMT)', tz: 'Europe/London' },
+          { label: 'Beijing (UTC+8)', tz: 'Asia/Shanghai' },
+          { label: 'Tokyo (JST)', tz: 'Asia/Tokyo' },
+        ].map(t =>
+          `<p><strong>${t.label}:</strong> ${endTime.toLocaleString('en-US', { ...timeOptions, timeZone: t.tz })}</p>`
+        ).join('');
+
+        tzEl.innerHTML = timeStrings;
       }
+
+
 
       // Simulated price chart (for now)
       if (market) {

@@ -26,19 +26,19 @@
       <form id="create-market-form">
         <label>
           Title:
-          <input type="text" id="market-title" name="title" required>
+          <input type="text" id="market-title" required>
         </label>
         <label>
           Description:
-          <textarea id="market-description" name="description" rows="3"></textarea>
+          <textarea id="market-description" rows="3"></textarea>
         </label>
         <label>
           Liquidity (b):
-          <input type="number" id="market-liquidity" name="liquidity" min="1" step="1" value="100">
+          <input type="number" id="market-liquidity" min="1" step="1" value="100">
         </label>
         <label>
           Expires At (optional):
-          <input type="datetime-local" id="market-expires" name="expires_at">
+          <input type="datetime-local" id="market-expires">
         </label>
         <label>
           Admin Username:
@@ -73,7 +73,7 @@
       </form>
     </section>
 
-    <!-- ✅ List All Markets -->
+    <!-- ✅ Market List -->
     <section>
       <h2>All Active Markets</h2>
       <div id="markets-message"></div>
@@ -88,9 +88,7 @@
             <th>Actions</th>
           </tr>
         </thead>
-        <tbody>
-          <!-- Populated dynamically -->
-        </tbody>
+        <tbody></tbody>
       </table>
       <button id="refresh-markets">🔄 Refresh List</button>
     </section>
@@ -102,9 +100,7 @@
       updateUserGreeting();
       loadMarketsAdmin();
 
-      // =============================================================
       // CREATE MARKET
-      // =============================================================
       const createForm = document.getElementById('create-market-form');
       createForm.addEventListener('submit', async function(e) {
         e.preventDefault();
@@ -114,73 +110,47 @@
         const expires_at_input = document.getElementById('market-expires').value;
         const admin_username = document.getElementById('admin-username').value;
         const admin_password = document.getElementById('admin-password').value;
-
-        const expires_at = expires_at_input
-          ? new Date(expires_at_input).toISOString()
-          : null;
+        const expires_at = expires_at_input ? new Date(expires_at_input).toISOString() : null;
 
         try {
           const res = await fetch(apiBase + '/markets', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              title,
-              description,
-              liquidity,
-              admin_username,
-              admin_password,
-              expires_at
-            })
+            body: JSON.stringify({ title, description, liquidity, admin_username, admin_password, expires_at })
           });
           const data = await res.json();
-          if (!res.ok) {
-            document.getElementById('market-create-message').textContent =
-              data.detail || 'Error creating market';
-            return;
-          }
-          document.getElementById('market-create-message').textContent =
-            '✅ Market created with ID ' + data.id;
+          if (!res.ok) throw new Error(data.detail || 'Error creating market');
+          document.getElementById('market-create-message').textContent = `✅ Market created with ID ${data.id}`;
           createForm.reset();
           loadMarketsAdmin();
         } catch (err) {
-          document.getElementById('market-create-message').textContent =
-            'Request failed';
+          document.getElementById('market-create-message').textContent = err.message;
         }
       });
 
-      // =============================================================
       // DELETE MARKET
-      // =============================================================
       const deleteForm = document.getElementById('delete-market-form');
       deleteForm.addEventListener('submit', async function(e) {
         e.preventDefault();
-        const marketId = document.getElementById('delete-market-id').value;
+        const id = document.getElementById('delete-market-id').value;
         const username = document.getElementById('delete-admin-username').value;
         const password = document.getElementById('delete-admin-password').value;
-        await deleteMarketAdmin(marketId, username, password);
+        await deleteMarketAdmin(id, username, password);
         loadMarketsAdmin();
       });
 
-      // =============================================================
-      // REFRESH MARKETS
-      // =============================================================
+      // REFRESH LIST
       document.getElementById('refresh-markets').addEventListener('click', loadMarketsAdmin);
     });
 
-    // =============================================================
-    // Helper: Load all markets and render them in table
-    // =============================================================
+    // LOAD MARKETS
     async function loadMarketsAdmin() {
       const tableBody = document.querySelector('#markets-table tbody');
-      const msg = document.getElementById('markets-message');
       tableBody.innerHTML = '<tr><td colspan="6">Loading...</td></tr>';
       try {
         const res = await fetch(apiBase + '/markets');
-        if (!res.ok) {
-          msg.textContent = 'Failed to load markets.';
-          return;
-        }
         const markets = await res.json();
+        if (!res.ok) throw new Error('Failed to load markets.');
         if (markets.length === 0) {
           tableBody.innerHTML = '<tr><td colspan="6">No markets found.</td></tr>';
           return;
@@ -188,8 +158,8 @@
 
         tableBody.innerHTML = '';
         markets.forEach(m => {
-          const tr = document.createElement('tr');
           const expires = m.expires_at ? new Date(m.expires_at).toLocaleString() : '—';
+          const tr = document.createElement('tr');
           tr.innerHTML = `
             <td>${m.id}</td>
             <td>${m.title}</td>
@@ -204,9 +174,9 @@
           tableBody.appendChild(tr);
         });
 
-        // Inline delete listeners
+        // Delete handler
         document.querySelectorAll('.delete-btn').forEach(btn => {
-          btn.addEventListener('click', async (e) => {
+          btn.addEventListener('click', async e => {
             const id = e.target.getAttribute('data-id');
             const username = prompt('Enter admin username:');
             const password = prompt('Enter admin password:');
@@ -217,53 +187,51 @@
           });
         });
 
-        // Inline resolve listeners
+        // Resolve handler (with admin prompt)
         document.querySelectorAll('.resolve-btn').forEach(btn => {
-          btn.addEventListener('click', async (e) => {
+          btn.addEventListener('click', async e => {
             const id = e.target.getAttribute('data-id');
+            const username = prompt('Enter admin username:');
+            const password = prompt('Enter admin password:');
             const outcome = prompt("Enter outcome (YES or NO):");
-            if (!outcome || !["YES", "NO"].includes(outcome.toUpperCase())) {
-              alert("Invalid outcome. Must be 'YES' or 'NO'.");
+            if (!username || !password || !["YES", "NO"].includes(outcome?.toUpperCase())) {
+              alert("Invalid input or missing credentials.");
               return;
             }
-            await resolveMarketAdmin(id, outcome.toUpperCase());
+            await resolveMarketAdmin(id, outcome.toUpperCase(), username, password);
             loadMarketsAdmin();
           });
         });
 
       } catch (err) {
-        msg.textContent = 'Error loading markets.';
+        document.getElementById('markets-message').textContent = err.message;
       }
     }
 
-    // =============================================================
-    // Helper: Delete market via API
-    // =============================================================
-    async function deleteMarketAdmin(marketId, username, password) {
+    // DELETE
+    async function deleteMarketAdmin(id, username, password) {
       const msg = document.getElementById('market-delete-message');
       try {
-        const url = `${apiBase}/markets/${marketId}?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`;
+        const url = `${apiBase}/markets/${id}?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`;
         const res = await fetch(url, { method: 'DELETE' });
         const data = await res.json();
-        if (res.ok) {
-          msg.textContent = data.detail || `✅ Market ${marketId} deleted successfully`;
-        } else {
-          msg.textContent = data.detail || 'Error deleting market';
-        }
-      } catch (err) {
+        msg.textContent = res.ok ? (data.detail || `✅ Market ${id} deleted`) : (data.detail || 'Error deleting market');
+      } catch {
         msg.textContent = 'Request failed.';
       }
     }
 
-    // =============================================================
-    // Helper: Resolve market via API
-    // =============================================================
-    async function resolveMarketAdmin(marketId, outcome) {
+    // RESOLVE (with admin credentials)
+    async function resolveMarketAdmin(marketId, outcome, username, password) {
       try {
+        const body = JSON.stringify({ market_id: parseInt(marketId), outcome });
         const res = await fetch(apiBase + '/resolve', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ market_id: parseInt(marketId), outcome })
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': 'Basic ' + btoa(username + ':' + password) // optional, for clarity
+          },
+          body
         });
         const data = await res.json();
         if (res.ok) {
@@ -271,7 +239,7 @@
         } else {
           alert(data.detail || 'Error resolving market');
         }
-      } catch (err) {
+      } catch {
         alert('Request failed while resolving market.');
       }
     }
