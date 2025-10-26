@@ -13,10 +13,23 @@
       <a href="index.html">Home</a>
       <a href="admin.html">Admin</a>
       <a href="login.html">Login / Register</a>
+      <a href="logout-link" class ='hidden'>Logout</a>
+      <span id="user-greeting" class="hidden"></span>
     </nav>
   </header>
 
   <main>
+    <section>
+      <p class="guidance">
+        Welcome to the <strong>Prediction Market Demo</strong>!  
+        <br><br>
+        • Each new user starts with <strong>$100</strong> in play money.<br>
+        • Register with a username and password (at least 3 characters).<br>
+        • Once logged in, you can view markets, place bets, and track results.<br>
+        • All data is for educational and demonstration purposes only.
+      </p>
+    </section>
+
     <section>
       <h2>Login</h2>
       <div id="login-message"></div>
@@ -53,6 +66,8 @@
   <script src="script.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function() {
+      updateUserGreeting();
+
       const loginForm = document.getElementById('login-form');
       loginForm.addEventListener('submit', async function(e) {
         e.preventDefault();

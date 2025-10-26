@@ -14,15 +14,37 @@ function updateUserGreeting() {
   const balance = localStorage.getItem('balance');
   const greetingEl = document.getElementById('user-greeting');
   const loginLink = document.getElementById('login-link');
+  const logoutLink = document.getElementById('logout-link');
+
   if (username) {
     greetingEl.textContent = `Hello, ${username} (Balance: ${parseFloat(balance).toFixed(2)})`;
     greetingEl.classList.remove('hidden');
     if (loginLink) loginLink.classList.add('hidden');
+    if (logoutLink) logoutLink.classList.remove('hidden');
   } else {
     greetingEl.classList.add('hidden');
     if (loginLink) loginLink.classList.remove('hidden');
+    if (logoutLink) logoutLink.classList.add('hidden'); 
   }
 }
+
+/**
+ * Handle logout behavior.
+ */
+document.addEventListener('DOMContentLoaded', () => {
+  const logoutLink = document.getElementById('logout-link');
+  if (logoutLink) {
+    logoutLink.addEventListener('click', (e) => {
+      e.preventDefault();
+      localStorage.removeItem('username');
+      localStorage.removeItem('balance');
+      localStorage.removeItem('user_id');
+      updateUserGreeting();
+      alert('You have logged out.');
+      window.location.href = 'index.html';
+    });
+  }
+});
 
 /**
  * Fetch and render all markets on the index page.
