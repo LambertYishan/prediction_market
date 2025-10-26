@@ -186,6 +186,8 @@ async function loadMarketDetails() {
   } catch (err) {
     container.textContent = 'Error loading market';
   }
+  return market;
+
 }
 
 // =============================================================
