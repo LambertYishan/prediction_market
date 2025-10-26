@@ -59,6 +59,9 @@
     document.addEventListener('DOMContentLoaded', async function() {
       updateUserGreeting();
       const market = await loadMarketDetails();
+      console.log("Loaded market:", market);
+      console.log("Expires_at:", market?.expires_at);
+
 
       // Countdown setup
       if (market && market.expires_at) {
