@@ -392,11 +392,13 @@ def resolve_market(request: ResolveRequest, db: Session = Depends(get_db)):
         # 1) Gather payouts
         bets = db.query(Bet).filter(Bet.market_id == market.id).all()
 
-        # Aggregate by user to minimize write churn
+        # Aggregate payouts per user (1 currency unit per winning share)
         credit_by_user = defaultdict(float)
         for bet in bets:
             if bet.side and bet.side.upper() == outcome_upper:
-                credit_by_user[bet.user_id] += float(bet.amount)
+                # Each winning share is worth $1
+                credit_by_user[bet.user_id] += bet.amount * 1.0
+
 
         # 2) Apply credits
         if credit_by_user:
