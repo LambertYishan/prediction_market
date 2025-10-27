@@ -11,7 +11,6 @@ from sqlalchemy import Column, Integer, String, Float, Boolean, ForeignKey, Date
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 
-
 from backend.database import Base
 
 
@@ -60,6 +59,7 @@ class Market(Base):
     expires_at = Column(DateTime, nullable=True)
 
     bets = relationship("Bet", back_populates="market")
+    price_history = relationship("PriceHistory", backref="market")
 
 
 class Bet(Base):
@@ -84,3 +84,21 @@ class Bet(Base):
 
     user = relationship("User", back_populates="bets")
     market = relationship("Market", back_populates="bets")
+
+
+class PriceHistory(Base):
+    __tablename__ = "price_history"
+    id = Column(Integer, primary_key=True, index=True)
+    market_id = Column(Integer, ForeignKey("markets.id"))
+    timestamp = Column(DateTime, default=datetime.utcnow)
+    price_yes = Column(Float)
+    price_no = Column(Float)
+
+class PriceHistory(Base):
+    __tablename__ = "price_history"
+
+    id = Column(Integer, primary_key=True, index=True)
+    market_id = Column(Integer, ForeignKey("markets.id"))
+    timestamp = Column(DateTime, default=datetime.utcnow)
+    price_yes = Column(Float)
+    price_no = Column(Float)

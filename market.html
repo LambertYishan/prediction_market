@@ -102,50 +102,47 @@
 
 
 
-      // Simulated price chart (for now)
+      // Real price chart from backend /markets/{id}/history
       if (market) {
         const chartSection = document.getElementById('chart-section');
         chartSection.classList.remove('hidden');
-
         const ctx = document.getElementById('priceChart').getContext('2d');
 
-        // Fake data for illustration; replace later with your bet history if desired
-        const labels = ['Start', '1h', '2h', '3h', 'Now'];
-        const yesPrices = [0.5, 0.52, 0.49, 0.55, market.price_yes];
-        const noPrices = yesPrices.map(p => 1 - p);
+        try {
+          const resp = await fetch(`${API_BASE}/markets/${market.id}/history`);
+          const history = await resp.json();
 
-        new Chart(ctx, {
-          type: 'line',
-          data: {
-            labels: labels,
-            datasets: [
-              {
-                label: 'YES Price',
-                data: yesPrices,
-                borderColor: 'green',
-                tension: 0.3,
-                fill: false
-              },
-              {
-                label: 'NO Price',
-                data: noPrices,
-                borderColor: 'red',
-                tension: 0.3,
-                fill: false
-              }
-            ]
-          },
-          options: {
-            responsive: true,
-            scales: {
-              y: {
-                min: 0,
-                max: 1,
-                title: { display: true, text: 'Price (0–1)' }
+          if (!Array.isArray(history) || history.length === 0) {
+            console.warn("No price history yet for this market.");
+            ctx.font = "16px sans-serif";
+            ctx.fillText("No price history yet — place a bet to start tracking!", 10, 50);
+            return;
+          }
+
+          const labels = history.map(p => new Date(p.timestamp).toLocaleString());
+          const yesPrices = history.map(p => p.price_yes);
+          const noPrices = history.map(p => p.price_no);
+
+          new Chart(ctx, {
+            type: 'line',
+            data: {
+              labels,
+              datasets: [
+                { label: 'YES Price', data: yesPrices, borderColor: 'green', tension: 0.3, fill: false },
+                { label: 'NO Price', data: noPrices, borderColor: 'red', tension: 0.3, fill: false }
+              ]
+            },
+            options: {
+              responsive: true,
+              scales: {
+                y: { min: 0, max: 1, title: { display: true, text: 'Price (0–1)' } },
+                x: { title: { display: true, text: 'Timestamp' }, ticks: { maxRotation: 45, minRotation: 45 } }
               }
             }
-          }
-        });
+          });
+        } catch (err) {
+          console.error("Failed to load price history:", err);
+        }
       }
     });
   </script>

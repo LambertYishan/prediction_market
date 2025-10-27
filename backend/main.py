@@ -19,7 +19,7 @@ from collections import defaultdict
 from sqlalchemy.exc import SQLAlchemyError
 
 from backend.database import Base, engine, get_db
-from backend.models import User, Market, Bet
+from backend.models import User, Market, Bet, PriceHistory
 from backend.market_logic import cost_for_shares, price_yes, price_no
 
 import hashlib
@@ -326,6 +326,20 @@ def place_bet(request: BetRequest, db: Session = Depends(get_db)):
     db.add(bet)
     db.commit()
     db.refresh(bet)
+
+    # compute new prices
+    p_yes = price_yes(market.yes_shares, market.no_shares, market.liquidity)
+    p_no = 1 - p_yes
+
+    # record snapshot
+    price_entry = PriceHistory(
+        market_id=market.id,
+        price_yes=p_yes,
+        price_no=p_no
+    )
+    db.add(price_entry)
+    db.commit()
+
     return BetResponse(
         id=bet.id,
         user_id=bet.user_id,
@@ -412,6 +426,27 @@ def get_user(user_id: int, db: Session = Depends(get_db)):
     return UserResponse(id=user.id, username=user.username, balance=user.balance)
 
 
+@app.get("/markets/{market_id}/history")
+def get_price_history(market_id: int, db: Session = Depends(get_db)):
+    records = (
+        db.query(PriceHistory)
+        .filter(PriceHistory.market_id == market_id)
+        .order_by(PriceHistory.timestamp.asc())
+        .all()
+    )
+    return [
+        {
+            "timestamp": r.timestamp.isoformat(),
+            "price_yes": r.price_yes,
+            "price_no": r.price_no,
+        }
+        for r in records
+    ]
+
+
+
+
 @app.get("/")
 def root():
     return {"message": "Prediction Market API is running!"}
+
