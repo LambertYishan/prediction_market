@@ -21,6 +21,16 @@ from sqlalchemy import inspect, text
 import os
 import pathlib
 
+# --- SAFELY RESET STALE SQLITE SCHEMA (Render fix) ---
+db_path = pathlib.Path("backend/database.db")
+if db_path.exists():
+    # Rename old database to avoid cached index conflicts
+    backup_name = f"backend/database_backup_{int(datetime.now().timestamp())}.db"
+    os.rename(db_path, backup_name)
+    print(f" Renamed old database to {backup_name} to clear stale index conflicts.")
+# --- END RESET ---
+
+
 from backend.database import Base, engine, get_db
 from backend.models import User, Market, Bet, PriceHistory
 from backend.market_logic import cost_for_shares, price_yes, price_no
@@ -35,14 +45,6 @@ load_dotenv()
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "lambert")  # fallback if .env missing
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "predictionmarket123")
 
-# --- SAFELY RESET STALE SQLITE SCHEMA (Render fix) ---
-db_path = pathlib.Path("backend/database.db")
-if db_path.exists():
-    # Rename old database to avoid cached index conflicts
-    backup_name = f"backend/database_backup_{int(datetime.now().timestamp())}.db"
-    os.rename(db_path, backup_name)
-    print(f" Renamed old database to {backup_name} to clear stale index conflicts.")
-# --- END RESET ---
 
 # --- Drop old price_history table and its index if needed ---
 insp = inspect(engine)
