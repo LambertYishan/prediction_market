@@ -464,6 +464,60 @@ def get_price_history(market_id: int, db: Session = Depends(get_db)):
         for r in records
     ]
 
+@app.get("/markets/{market_id}/leaderboard")
+def get_market_leaderboard(market_id: int, db: Session = Depends(get_db)):
+    """
+    Return leaderboard for a market showing all participants and their payout or current value.
+    Before resolution: shows unrealized gain/loss.
+    After resolution: shows realized payout (1 per winning share, 0 for losing side).
+    """
+    market = db.query(Market).filter(Market.id == market_id).first()
+    if not market:
+        raise HTTPException(status_code=404, detail="Market not found")
+
+    bets = db.query(Bet).filter(Bet.market_id == market_id).all()
+    if not bets:
+        return []
+
+    leaderboard = defaultdict(lambda: {"yes": 0.0, "no": 0.0, "spent": 0.0})
+
+    for bet in bets:
+        side = bet.side.upper()
+        leaderboard[bet.user_id][side.lower()] += bet.amount
+        leaderboard[bet.user_id]["spent"] += bet.total_cost
+
+    # Compute realized or unrealized PnL
+    result = []
+    for user_id, stats in leaderboard.items():
+        user = db.query(User).filter(User.id == user_id).first()
+        username = user.username if user else f"User {user_id}"
+
+        if market.resolved:
+            # Realized payout
+            if market.outcome == "YES":
+                payout = stats["yes"] * 1.0 - stats["spent"]
+            elif market.outcome == "NO":
+                payout = stats["no"] * 1.0 - stats["spent"]
+            else:
+                payout = -stats["spent"]
+        else:
+            # Unrealized value: use current market prices
+            p_yes = price_yes(market.yes_shares, market.no_shares, market.liquidity)
+            p_no = 1.0 - p_yes
+            current_value = stats["yes"] * p_yes + stats["no"] * p_no
+            payout = current_value - stats["spent"]
+
+        result.append({
+            "username": username,
+            "yes_shares": round(stats["yes"], 3),
+            "no_shares": round(stats["no"], 3),
+            "spent": round(stats["spent"], 2),
+            "payout": round(payout, 2)
+        })
+
+    # Sort by highest payout
+    result.sort(key=lambda x: x["payout"], reverse=True)
+    return result
 
 
 

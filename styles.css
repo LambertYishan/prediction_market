@@ -122,3 +122,19 @@ button:hover {
 .tz-display p {
   margin: 4px 0;
 }
+
+#leaderboard-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1em;
+}
+
+#leaderboard-table th, #leaderboard-table td {
+  border: 1px solid #ccc;
+  padding: 0.5em;
+  text-align: center;
+}
+
+#leaderboard-table th {
+  background-color: #f2f2f2;
+}
