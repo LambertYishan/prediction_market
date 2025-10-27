@@ -56,94 +56,90 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 });
-
 /**
- * Fetch and render all markets on the index page.
+ * Fetch and render all markets, grouped as Active and Inactive.
  */
 async function loadMarkets() {
-  const listEl = document.getElementById('market-list');
-  if (!listEl) return;
-  listEl.innerHTML = 'Loading markets...';
+  const activeList = document.getElementById('active-market-list');
+  const inactiveList = document.getElementById('inactive-market-list');
+
+  if (!activeList || !inactiveList) return;
+
+  activeList.innerHTML = 'Loading markets...';
+  inactiveList.innerHTML = '';
+
   try {
     const res = await fetch(apiBase + '/markets');
     if (!res.ok) {
-      listEl.textContent = 'Failed to load markets';
+      activeList.textContent = 'Failed to load markets';
       return;
     }
+
     const markets = await res.json();
     if (!Array.isArray(markets) || markets.length === 0) {
-      listEl.textContent = 'No markets found.';
+      activeList.textContent = 'No markets found.';
       return;
     }
 
-    listEl.innerHTML = '';
-    markets.forEach(market => {
-      const card = document.createElement('div');
-      card.className = 'market-card';
+    // Separate active/inactive
+    const now = new Date();
+    const active = [];
+    const inactive = [];
 
-      const now = new Date();
-      const expiry = market.expires_at ? new Date(market.expires_at) : null;
+    markets.forEach(m => {
+      const expiry = m.expires_at ? new Date(m.expires_at) : null;
       const isExpired = expiry && expiry < now;
-      const needsResolution = isExpired && !market.resolved;
-
-      if (needsResolution) card.classList.add('expired-unresolved');
-      if (market.resolved) card.classList.add('resolved');
-
-      const expiryInfo = expiry
-        ? `<p><strong>Expires:</strong> ${expiry.toLocaleString()}</p>`
-        : '<p><strong>Expires:</strong> None</p>';
-
-      const statusLabel = market.resolved
-        ? `<p><strong>Status:</strong> ✅ Resolved (${market.outcome})</p>`
-        : needsResolution
-          ? `<p><strong>Status:</strong> ⚠️ Expired — Awaiting Resolution</p>`
-          : `<p><strong>Status:</strong> ⏳ Active</p>`;
-
-      card.innerHTML = `
-    <h3>${market.title}</h3>
-    <p>${market.description || ''}</p>
-    ${expiryInfo}
-    ${statusLabel}
-    <p><strong>YES Price:</strong> ${market.price_yes.toFixed(2)} |
-       <strong>NO Price:</strong> ${market.price_no.toFixed(2)}</p>
-    <p><strong>YES Shares:</strong> ${market.yes_shares.toFixed(2)} |
-       <strong>NO Shares:</strong> ${market.no_shares.toFixed(2)}</p>
-    <a href="market.html?id=${market.id}">View Market</a>
-  `;
-
-      // Optional: add quick resolve button for expired unresolved markets
-      if (needsResolution) {
-        const resolveBtn = document.createElement('button');
-        resolveBtn.textContent = "Resolve Now";
-        resolveBtn.onclick = async () => {
-          const outcome = prompt("Enter outcome (YES/NO):");
-          if (!outcome) return;
-          const adminUser = prompt("Admin username:");
-          const adminPass = prompt("Admin password:");
-          const res = await fetch(`${apiBase}/resolve`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ market_id: market.id, outcome, admin_username: adminUser, admin_password: adminPass })
-          });
-          if (res.ok) {
-            alert("Market resolved successfully!");
-            loadMarkets(); // reload list
-          } else {
-            const err = await res.json();
-            alert("Failed to resolve: " + err.detail);
-          }
-        };
-        card.appendChild(resolveBtn);
-      }
-
-      listEl.appendChild(card);
+      const status = m.resolved ? 'resolved' : isExpired ? 'expired' : 'active';
+      if (status === 'active') active.push({ ...m, status });
+      else inactive.push({ ...m, status });
     });
 
-    } catch (err) {
+    // Render helper
+    function renderMarketCard(m) {
+      const expiryLine = m.expires_at
+        ? `<p><strong>Expires:</strong> ${new Date(m.expires_at).toLocaleString()}</p>`
+        : '';
+      const statusLabel =
+        m.status === 'resolved'
+          ? `<p><strong>Status:</strong> ✅ Resolved (${m.outcome})</p>`
+          : m.status === 'expired'
+            ? `<p><strong>Status:</strong> ⚠️ Expired — Awaiting Resolution</p>`
+            : `<p><strong>Status:</strong> ⏳ Active</p>`;
+
+      const card = document.createElement('div');
+      card.className = 'market-card';
+      card.innerHTML = `
+        <h3>${m.title}</h3>
+        <p>${m.description || ''}</p>
+        ${expiryLine}
+        ${statusLabel}
+        <p><strong>YES Price:</strong> ${m.price_yes.toFixed(2)} |
+           <strong>NO Price:</strong> ${m.price_no.toFixed(2)}</p>
+        <p><strong>YES Shares:</strong> ${m.yes_shares.toFixed(2)} |
+           <strong>NO Shares:</strong> ${m.no_shares.toFixed(2)}</p>
+        <a href="market.html?id=${m.id}">View Market</a>
+      `;
+      return card;
+    }
+
+    // Clear and populate sections
+    activeList.innerHTML = '';
+    inactiveList.innerHTML = '';
+
+    if (active.length === 0)
+      activeList.innerHTML = '<p>No active markets currently.</p>';
+    else active.forEach(m => activeList.appendChild(renderMarketCard(m)));
+
+    if (inactive.length === 0)
+      inactiveList.innerHTML = '<p>No inactive markets yet.</p>';
+    else inactive.forEach(m => inactiveList.appendChild(renderMarketCard(m)));
+
+  } catch (err) {
     console.error("Error loading markets:", err);
-    listEl.textContent = 'Error loading markets.';
-  } 
-} 
+    activeList.textContent = 'Error loading markets.';
+  }
+}
+
 
 /**
  * Extract a query parameter by name.
@@ -152,10 +148,9 @@ function getQueryParam(name) {
   const params = new URLSearchParams(window.location.search);
   return params.get(name);
 }
-
 /**
  * Load details for a single market and render them on the page.
- * Also sets up the bet form handler if the market is unresolved.
+ * Also sets up the bet form handler if the market is unresolved and active.
  */
 async function loadMarketDetails() {
   const marketId = getQueryParam('id');
@@ -163,12 +158,14 @@ async function loadMarketDetails() {
   const betContainer = document.getElementById('bet-container');
   if (!marketId || !container) return;
   container.innerHTML = 'Loading market...';
+
   try {
     const res = await fetch(apiBase + '/markets');
     if (!res.ok) {
       container.textContent = 'Failed to load market';
       return;
     }
+
     const markets = await res.json();
     const market = markets.find(m => String(m.id) === String(marketId));
     if (!market) {
@@ -176,27 +173,54 @@ async function loadMarketDetails() {
       return;
     }
 
-    // Render details
+    // Compute status locally (in case backend hasn’t yet added it)
+    const now = new Date();
+    const expiry = market.expires_at ? new Date(market.expires_at) : null;
+    let status = "active";
+    if (market.resolved) status = "resolved";
+    else if (expiry && expiry < now) status = "expired";
+
+    // Render market details
     const expiryLine = market.expires_at
       ? `<p><strong>Expires:</strong> ${new Date(market.expires_at).toLocaleString()}</p>`
       : '';
+    const statusLabel = status === "resolved"
+      ? `<p><strong>Status:</strong> ✅ Resolved (${market.outcome})</p>`
+      : status === "expired"
+        ? `<p><strong>Status:</strong> ⚠️ Expired — Awaiting Resolution</p>`
+        : `<p><strong>Status:</strong> ⏳ Active</p>`;
+
     container.innerHTML = `
       <h2>${market.title}</h2>
       <p>${market.description || ''}</p>
+      ${expiryLine}
+      ${statusLabel}
       <p><strong>Price YES:</strong> ${market.price_yes.toFixed(2)} &nbsp;|&nbsp;
          <strong>Price NO:</strong> ${market.price_no.toFixed(2)}</p>
-      <p><strong>YES shares:</strong> ${market.yes_shares.toFixed(2)} &nbsp;|&nbsp;
-         <strong>NO shares:</strong> ${market.no_shares.toFixed(2)}</p>
-      ${expiryLine}
+      <p><strong>YES Shares:</strong> ${market.yes_shares.toFixed(2)} &nbsp;|&nbsp;
+         <strong>NO Shares:</strong> ${market.no_shares.toFixed(2)}</p>
       ${market.resolved ? `<p><strong>Outcome:</strong> ${market.outcome}</p>` : ''}
     `;
 
-    // Betting section
-    if (!market.resolved) {
+    // 🟡 Disable betting if inactive
+    if (status !== "active" || market.resolved) {
+      betContainer.classList.add('hidden');
+      const lockMsg = document.createElement('p');
+      lockMsg.style.color = status === "resolved" ? "green" : "orange";
+      lockMsg.style.fontWeight = "bold";
+      lockMsg.style.marginTop = "10px";
+      lockMsg.textContent =
+        status === "resolved"
+          ? `✅ This market has been resolved (${market.outcome}).`
+          : `⚠️ This market has expired. Waiting for admin to resolve.`;
+      container.appendChild(lockMsg);
+    } else {
+      // 🟢 Active: show betting form
       betContainer.classList.remove('hidden');
       const betForm = document.getElementById('bet-form');
       const betMessage = document.getElementById('bet-message');
-      betForm.addEventListener('submit', async function(e) {
+
+      betForm.addEventListener('submit', async function (e) {
         e.preventDefault();
         const userId = localStorage.getItem('user_id');
         if (!userId) {
@@ -222,27 +246,27 @@ async function loadMarketDetails() {
             return;
           }
           const bet = await res.json();
-          betMessage.textContent = `✅ Bet placed: ${bet.amount} shares @ ${bet.price.toFixed(2)} (cost: ${bet.total_cost.toFixed(2)})`;
-          // Update balance in localStorage
+          betMessage.textContent =
+            `✅ Bet placed: ${bet.amount} shares @ ${bet.price.toFixed(2)} (cost: ${bet.total_cost.toFixed(2)})`;
+          // Refresh balance
           const userRes = await fetch(apiBase + `/user/${userId}`);
           if (userRes.ok) {
             const userInfo = await userRes.json();
             localStorage.setItem('balance', userInfo.balance);
             updateUserGreeting();
           }
-          loadMarketDetails();
+          loadMarketDetails(); // reload page to refresh prices
         } catch (err) {
           betMessage.textContent = 'Request failed';
         }
-      });
-    } else {
-      betContainer.classList.add('hidden');
+      }, { once: true });
     }
 
-    // ✅ FIX HERE: return inside try block
+    // ✅ Return the market for chart and leaderboard
     return market;
 
   } catch (err) {
+    console.error(err);
     container.textContent = 'Error loading market';
     return null;
   }

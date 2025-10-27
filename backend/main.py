@@ -49,7 +49,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "lambert")  # fallback if .env missing
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "predictionmarket123")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "predictit123")
 
 
 # Create database tables. In production you may want to manage migrations
@@ -203,30 +203,28 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid username or password")
     return {"id": user.id, "username": user.username, "balance": user.balance}
 
-
 @app.get("/markets", response_model=List[MarketResponse])
 def list_markets(db: Session = Depends(get_db)):
-    """Return all markets with current prices.
-
-    Prices are computed on the fly using the LMSR cost function. For each
-    market the YES and NO probabilities are added to the response.
-    """
+    """Return all markets with current prices and status labels."""
     now = datetime.utcnow()
-    markets = db.query(Market).filter(
-        (Market.expires_at == None) | (Market.expires_at > now)
-    ).all()
+    markets = db.query(Market).all()
 
     response = []
     for m in markets:
         b = m.liquidity
-        # If the market is resolved, the price is simply 1 for the winning
-        # outcome and 0 for the losing one.
-        if m.resolved and m.outcome in {"YES", "NO"}:
+        if m.resolved:
             p_yes = 1.0 if m.outcome == "YES" else 0.0
             p_no = 1.0 - p_yes
+            status = "resolved"
+        elif m.expires_at and m.expires_at < now:
+            p_yes = price_yes(m.yes_shares, m.no_shares, b)
+            p_no = 1.0 - p_yes
+            status = "expired"
         else:
             p_yes = price_yes(m.yes_shares, m.no_shares, b)
             p_no = 1.0 - p_yes
+            status = "active"
+
         response.append(MarketResponse(
             id=m.id,
             title=m.title,
@@ -239,9 +237,10 @@ def list_markets(db: Session = Depends(get_db)):
             price_yes=p_yes,
             price_no=p_no,
             created_at=m.created_at,
-            expires_at=m.expires_at     # ← ADD THIS LINE
-        ))
+            expires_at=m.expires_at
+        ).dict() | {"status": status})  # add dynamic status field
     return response
+
 
 
 @app.post("/markets", response_model=MarketResponse, status_code=status.HTTP_201_CREATED)
