@@ -15,6 +15,8 @@ from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
+from collections import defaultdict
+from sqlalchemy.exc import SQLAlchemyError
 
 from backend.database import Base, engine, get_db
 from backend.models import User, Market, Bet
@@ -336,40 +338,48 @@ def place_bet(request: BetRequest, db: Session = Depends(get_db)):
     )
 
 
+
 @app.post("/resolve", response_model=MarketResponse)
 def resolve_market(request: ResolveRequest, db: Session = Depends(get_db)):
-    """Resolve a market to a final outcome ('YES' or 'NO').
-
-    Once resolved, the market's outcome is fixed and prices become 1 for the
-    winning side and 0 for the losing side. All outstanding shares of the
-    winning outcome are redeemed at value 1 and credited back to users. This
-    simplistic implementation iterates over all bets and credits balances
-    accordingly.
-    """
-    market = db.query(Market).filter(Market.id == request.market_id).first()
+    """Resolve a market and credit winning shareholders atomically."""
+    market = db.query(Market).filter(Market.id == request.market_id).with_for_update(nowait=False).first()
     if not market:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Market not found")
     if market.resolved:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Market has already been resolved")
+
     outcome_upper = request.outcome.upper()
     if outcome_upper not in {"YES", "NO"}:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Outcome must be 'YES' or 'NO'")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Outcome must be 'YES' or 'NO'" )
 
-    # Mark market as resolved
-    market.resolved = True
-    market.outcome = outcome_upper
+    try:
+        # Begin atomic section
+        # (FastAPI gives you a session; we ensure atomicity via a subtransaction scope)
+        # You can also use: with db.begin():  (but we’ll keep explicit try/except + commit/rollback)
+        # 1) Gather payouts
+        bets = db.query(Bet).filter(Bet.market_id == market.id).all()
 
-    # Payout winners: iterate through all bets on this market
-    bets = db.query(Bet).filter(Bet.market_id == market.id).all()
-    for bet in bets:
-        # If the bet matches the outcome, credit the user the number of shares
-        if bet.side == outcome_upper:
-            user = db.query(User).filter(User.id == bet.user_id).first()
-            # Credit 1 currency unit per share; total = amount
-            user.balance += bet.amount
-    db.commit()
+        # Aggregate by user to minimize write churn
+        credit_by_user = defaultdict(float)
+        for bet in bets:
+            if bet.side and bet.side.upper() == outcome_upper:
+                credit_by_user[bet.user_id] += float(bet.amount)
 
-    # Recompute prices: set to 1 for winning outcome and 0 for losing
+        # 2) Apply credits
+        if credit_by_user:
+            users = db.query(User).filter(User.id.in_(credit_by_user.keys())).all()
+            for u in users:
+                u.balance = (u.balance or 0.0) + credit_by_user[u.id]
+
+        # 3) Mark market resolved + outcome
+        market.resolved = True
+        market.outcome = outcome_upper
+
+        db.commit()
+    except SQLAlchemyError as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to resolve market and credit winners: {str(e)}")
+
     p_yes = 1.0 if outcome_upper == "YES" else 0.0
     p_no = 1.0 - p_yes
     return MarketResponse(
@@ -382,8 +392,11 @@ def resolve_market(request: ResolveRequest, db: Session = Depends(get_db)):
         resolved=market.resolved,
         outcome=market.outcome,
         price_yes=p_yes,
-        price_no=p_no
+        price_no=p_no,
+        created_at=market.created_at,
+        expires_at=market.expires_at
     )
+
 
 
 @app.get("/user/{user_id}", response_model=UserResponse)
