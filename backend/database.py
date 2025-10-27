@@ -21,7 +21,7 @@ from sqlalchemy.orm import sessionmaker
 # When developing locally without a running Postgres instance, the fallback
 # SQLite URI is used instead. You can override this by setting the
 # ``DATABASE_URL`` environment variable before starting the application.
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./market.db")
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:////tmp/prediction_market.db")
 
 # Configure the SQLAlchemy engine. SQLite requires special options for
 # multi‑threaded access. Other backends such as PostgreSQL do not need
