@@ -88,14 +88,6 @@ class Bet(Base):
 
 class PriceHistory(Base):
     __tablename__ = "price_history"
-    id = Column(Integer, primary_key=True, index=True)
-    market_id = Column(Integer, ForeignKey("markets.id"))
-    timestamp = Column(DateTime, default=datetime.utcnow)
-    price_yes = Column(Float)
-    price_no = Column(Float)
-
-class PriceHistory(Base):
-    __tablename__ = "price_history"
     __table_args__ = {'extend_existing': True} 
 
     id = Column(Integer, primary_key=True, index=True)
