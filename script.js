@@ -80,26 +80,70 @@ async function loadMarkets() {
     markets.forEach(market => {
       const card = document.createElement('div');
       card.className = 'market-card';
-      const expiryInfo = market.expires_at
-        ? `<p><strong>Expires:</strong> ${new Date(market.expires_at).toLocaleString()}</p>`
-        : '';
+
+      const now = new Date();
+      const expiry = market.expires_at ? new Date(market.expires_at) : null;
+      const isExpired = expiry && expiry < now;
+      const needsResolution = isExpired && !market.resolved;
+
+      if (needsResolution) card.classList.add('expired-unresolved');
+      if (market.resolved) card.classList.add('resolved');
+
+      const expiryInfo = expiry
+        ? `<p><strong>Expires:</strong> ${expiry.toLocaleString()}</p>`
+        : '<p><strong>Expires:</strong> None</p>';
+
+      const statusLabel = market.resolved
+        ? `<p><strong>Status:</strong> ✅ Resolved (${market.outcome})</p>`
+        : needsResolution
+          ? `<p><strong>Status:</strong> ⚠️ Expired — Awaiting Resolution</p>`
+          : `<p><strong>Status:</strong> ⏳ Active</p>`;
+
       card.innerHTML = `
-        <h3>${market.title}</h3>
-        <p>${market.description || ''}</p>
-        <p><strong>Price YES:</strong> ${market.price_yes.toFixed(2)} &nbsp;|&nbsp;
-           <strong>Price NO:</strong> ${market.price_no.toFixed(2)}</p>
-        <p><strong>YES shares:</strong> ${market.yes_shares.toFixed(2)} &nbsp;|&nbsp;
-           <strong>NO shares:</strong> ${market.no_shares.toFixed(2)}</p>
-        ${expiryInfo}
-        ${market.resolved ? `<p><strong>Outcome:</strong> ${market.outcome}</p>` : ''}
-        <a href="market.html?id=${market.id}">View Market</a>
-      `;
+    <h3>${market.title}</h3>
+    <p>${market.description || ''}</p>
+    ${expiryInfo}
+    ${statusLabel}
+    <p><strong>YES Price:</strong> ${market.price_yes.toFixed(2)} |
+       <strong>NO Price:</strong> ${market.price_no.toFixed(2)}</p>
+    <p><strong>YES Shares:</strong> ${market.yes_shares.toFixed(2)} |
+       <strong>NO Shares:</strong> ${market.no_shares.toFixed(2)}</p>
+    <a href="market.html?id=${market.id}">View Market</a>
+  `;
+
+      // Optional: add quick resolve button for expired unresolved markets
+      if (needsResolution) {
+        const resolveBtn = document.createElement('button');
+        resolveBtn.textContent = "Resolve Now";
+        resolveBtn.onclick = async () => {
+          const outcome = prompt("Enter outcome (YES/NO):");
+          if (!outcome) return;
+          const adminUser = prompt("Admin username:");
+          const adminPass = prompt("Admin password:");
+          const res = await fetch(`${apiBase}/resolve`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ market_id: market.id, outcome, admin_username: adminUser, admin_password: adminPass })
+          });
+          if (res.ok) {
+            alert("Market resolved successfully!");
+            loadMarkets(); // reload list
+          } else {
+            const err = await res.json();
+            alert("Failed to resolve: " + err.detail);
+          }
+        };
+        card.appendChild(resolveBtn);
+      }
+
       listEl.appendChild(card);
     });
-  } catch (err) {
-    listEl.textContent = 'Error loading markets';
-  }
-}
+
+    } catch (err) {
+    console.error("Error loading markets:", err);
+    listEl.textContent = 'Error loading markets.';
+  } 
+} 
 
 /**
  * Extract a query parameter by name.

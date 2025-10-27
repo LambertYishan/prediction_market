@@ -371,52 +371,69 @@ def place_bet(request: BetRequest, db: Session = Depends(get_db)):
     )
 
 
-
 @app.post("/resolve", response_model=MarketResponse)
 def resolve_market(request: ResolveRequest, db: Session = Depends(get_db)):
-    """Resolve a market and credit winning shareholders atomically."""
+    """
+    Resolve a market and credit winning shareholders atomically.
+
+    - Admins may resolve early if needed (e.g. clear outcome known before expiry).
+    - Markets that have passed their expiry date but remain unresolved can also be resolved.
+    - The function sets outcome + credits winners + records whether resolution was early or post-expiry.
+    """
     market = db.query(Market).filter(Market.id == request.market_id).with_for_update(nowait=False).first()
     if not market:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Market not found")
+
     if market.resolved:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Market has already been resolved")
 
     outcome_upper = request.outcome.upper()
     if outcome_upper not in {"YES", "NO"}:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Outcome must be 'YES' or 'NO'" )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Outcome must be 'YES' or 'NO'")
+
+    # Detect timing of resolution
+    now = datetime.now(timezone.utc)
+    if market.expires_at:
+        if now < market.expires_at:
+            resolution_note = "Resolved early by admin (before expiry)."
+        else:
+            resolution_note = "Resolved after natural expiry."
+    else:
+        resolution_note = "Resolved by admin (no expiry date set)."
 
     try:
-        # Begin atomic section
-        # (FastAPI gives you a session; we ensure atomicity via a subtransaction scope)
-        # You can also use: with db.begin():  (but we’ll keep explicit try/except + commit/rollback)
-        # 1) Gather payouts
+        # 1️⃣ Collect all bets
         bets = db.query(Bet).filter(Bet.market_id == market.id).all()
-
-        # Aggregate payouts per user (1 currency unit per winning share)
         credit_by_user = defaultdict(float)
         for bet in bets:
             if bet.side and bet.side.upper() == outcome_upper:
-                # Each winning share is worth $1
-                credit_by_user[bet.user_id] += bet.amount * 1.0
+                credit_by_user[bet.user_id] += bet.amount  # Each winning share = $1
 
-
-        # 2) Apply credits
+        # 2️⃣ Apply credits
         if credit_by_user:
             users = db.query(User).filter(User.id.in_(credit_by_user.keys())).all()
             for u in users:
                 u.balance = (u.balance or 0.0) + credit_by_user[u.id]
 
-        # 3) Mark market resolved + outcome
+        # 3️⃣ Mark market resolved
         market.resolved = True
         market.outcome = outcome_upper
+        # Optional: store the resolution note in description if you want to display later
+        if market.description:
+            market.description += f"\n\n🟢 {resolution_note}"
+        else:
+            market.description = resolution_note
 
         db.commit()
+
     except SQLAlchemyError as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to resolve market and credit winners: {str(e)}")
 
+    # Return final state
     p_yes = 1.0 if outcome_upper == "YES" else 0.0
     p_no = 1.0 - p_yes
+
     return MarketResponse(
         id=market.id,
         title=market.title,

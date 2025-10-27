@@ -138,3 +138,31 @@ button:hover {
 #leaderboard-table th {
   background-color: #f2f2f2;
 }
+
+/* === Admin Market Status Tags === */
+.market-card {
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 12px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+  background-color: #fff;
+}
+
+.market-card.expired-unresolved {
+  border-color: #ffa726;
+  background-color: #fff8e1;
+}
+
+.market-card.resolved {
+  border-color: #66bb6a;
+  background-color: #e8f5e9;
+}
+
+.market-card.expired-unresolved h3::before {
+  content: "⚠️ ";
+}
+
+.market-card.resolved h3::before {
+  content: "✅ ";
+}
