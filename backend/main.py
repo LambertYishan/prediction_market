@@ -33,12 +33,13 @@ load_dotenv()
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "lambert")  # fallback if .env missing
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "predictionmarket123")
 
-# --- Drop old price_history table if needed ---
+# --- Drop old price_history table and its index if needed ---
 insp = inspect(engine)
-if "price_history" in insp.get_table_names():
-    with engine.begin() as conn:
+with engine.begin() as conn:
+    if "price_history" in insp.get_table_names():
         conn.execute(text("DROP TABLE IF EXISTS price_history"))
-        conn.commit()
+    # Drop any orphaned index left behind by SQLite
+    conn.execute(text("DROP INDEX IF EXISTS ix_price_history_id"))
 # --- End drop ---
 
 # Create database tables. In production you may want to manage migrations
