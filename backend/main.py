@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from collections import defaultdict
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy import inspect, text
 
 from backend.database import Base, engine, get_db
 from backend.models import User, Market, Bet, PriceHistory
@@ -32,6 +33,13 @@ load_dotenv()
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "lambert")  # fallback if .env missing
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "predictionmarket123")
 
+# --- Drop old price_history table if needed ---
+insp = inspect(engine)
+if "price_history" in insp.get_table_names():
+    with engine.begin() as conn:
+        conn.execute(text("DROP TABLE IF EXISTS price_history"))
+        conn.commit()
+# --- End drop ---
 
 # Create database tables. In production you may want to manage migrations
 # separately using Alembic, but for a quick start this is convenient.
