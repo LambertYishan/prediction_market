@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>User Portal</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header>
+  <h1>Your Portal</h1>
+  <nav>
+    <a href="index.html">Home</a>
+    <a href="portal.html">My Portal</a>
+    <a href="#" id="logout-link">Logout</a>
+  </nav>
+</header>
+
+<main>
+  <section id="profile-section">
+    <h2>Profile Info</h2>
+    <p id="user-info"></p>
+    <button id="change-pass-btn">Change Password</button>
+  </section>
+
+  <section id="history-section">
+    <h2>Betting History</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Market</th>
+          <th>Side</th>
+          <th>Amount</th>
+          <th>Price</th>
+          <th>Cost</th>
+          <th>Outcome</th>
+          <th>PnL ($)</th>
+          <th>Time</th>
+        </tr>
+      </thead>
+      <tbody id="bets-body"></tbody>
+    </table>
+    <p id="lifetime-pnl"></p>
+  </section>
+</main>
+
+<script src="script.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+  await updateUserGreeting();
+  const userId = localStorage.getItem('user_id');
+  if (!userId) {
+    window.location.href = 'login.html';
+    return;
+  }
+
+  const userRes = await fetch(`${apiBase}/user/${userId}`);
+  const user = await userRes.json();
+  document.getElementById('user-info').textContent = `Username: ${user.username}`;
+
+  const betsRes = await fetch(`${apiBase}/user/${userId}/bets`);
+  const data = await betsRes.json();
+  const tbody = document.getElementById('bets-body');
+
+  if (!data.bets || data.bets.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8">No bets yet.</td></tr>';
+  } else {
+    tbody.innerHTML = data.bets.map(b => `
+      <tr>
+        <td>${b.market_title}</td>
+        <td>${b.side}</td>
+        <td>${b.amount.toFixed(2)}</td>
+        <td>${b.price.toFixed(2)}</td>
+        <td>${b.total_cost.toFixed(2)}</td>
+        <td>${b.outcome || '-'}</td>
+        <td>${b.pnl.toFixed(2)}</td>
+        <td>${new Date(b.timestamp).toLocaleString()}</td>
+      </tr>
+    `).join('');
+  }
+
+  document.getElementById('lifetime-pnl').textContent =
+    `Lifetime PnL: $${data.lifetime_pnl.toFixed(2)}`;
+
+  // Password change handler
+  document.getElementById('change-pass-btn').addEventListener('click', async () => {
+    const oldPass = prompt("Enter old password:");
+    const newPass = prompt("Enter new password:");
+    if (!oldPass || !newPass) return;
+
+    const res = await fetch(`${apiBase}/user/change_password`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({user_id: parseInt(userId), old_password: oldPass, new_password: newPass})
+    });
+    const result = await res.json();
+    alert(result.detail || "Error updating password");
+  });
+});
+</script>
+</body>
+</html>

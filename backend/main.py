@@ -547,6 +547,72 @@ def get_leaderboard(market_id: int, db: Session = Depends(get_db)):
 
     return list(leaderboard.values())
 
+@app.get("/user/{user_id}/bets")
+def get_user_bets(user_id: int, db: Session = Depends(get_db)):
+    """Return full betting history for a user across all markets, with realized/unrealized PnL."""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    bets = (
+        db.query(Bet)
+        .filter(Bet.user_id == user_id)
+        .order_by(Bet.timestamp.desc())
+        .all()
+    )
+    if not bets:
+        return {"bets": [], "lifetime_pnl": 0.0}
+
+    # Get all markets for reference
+    market_ids = list({b.market_id for b in bets})
+    markets = {m.id: m for m in db.query(Market).filter(Market.id.in_(market_ids)).all()}
+
+    history = []
+    lifetime_pnl = 0.0
+
+    for b in bets:
+        m = markets.get(b.market_id)
+        if not m:
+            continue
+
+        # Calculate PnL
+        if m.resolved:
+            realized_pnl = b.amount * (1.0 if b.side == m.outcome else 0.0) - b.total_cost
+        else:
+            # Unrealized PnL = current LMSR mark-to-market (optional simplification)
+            realized_pnl = -b.total_cost
+        lifetime_pnl += realized_pnl
+
+        history.append({
+            "market_title": m.title,
+            "side": b.side,
+            "amount": b.amount,
+            "price": b.price,
+            "total_cost": b.total_cost,
+            "timestamp": b.timestamp.isoformat(),
+            "resolved": m.resolved,
+            "outcome": m.outcome,
+            "pnl": realized_pnl
+        })
+
+    return {"bets": history, "lifetime_pnl": lifetime_pnl}
+
+class PasswordChangeRequest(BaseModel):
+    user_id: int
+    old_password: str
+    new_password: str
+
+@app.post("/user/change_password")
+def change_password(req: PasswordChangeRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.id == req.user_id).first()
+    if not user or not verify_password(req.old_password, user.password_hash):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    user.password_hash = get_password_hash(req.new_password)
+    db.commit()
+    return {"detail": "Password updated successfully"}
+
+
 
 @app.get("/")
 def root():

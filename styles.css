@@ -166,3 +166,13 @@ button:hover {
 .market-card.resolved h3::before {
   content: "✅ ";
 }
+
+#lifetime-pnl {
+  font-size: 1.2em;
+  font-weight: bold;
+  margin-top: 12px;
+}
+
+#lifetime-pnl::before {
+  content: "🏁 ";
+}
