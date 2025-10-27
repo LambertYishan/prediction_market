@@ -21,6 +21,21 @@ from sqlalchemy import inspect, text
 import os
 import pathlib
 
+
+# --- FORCE CLEANUP OF STALE LOCAL SQLITE FILES (Render Free Tier Safe) ---
+
+
+for old_db in ["backend/market.db", "backend/database.db"]:
+    db_file = pathlib.Path(old_db)
+    if db_file.exists():
+        try:
+            db_file.unlink()
+            print(f"🧹 Deleted stale DB file: {old_db}")
+        except Exception as e:
+            print(f"⚠️ Could not delete {old_db}: {e}")
+# --- END CLEANUP ---
+
+
 # --- SAFELY RESET STALE SQLITE SCHEMA (Render fix) ---
 db_path = pathlib.Path("backend/database.db")
 if db_path.exists():
