@@ -9,6 +9,15 @@ starter template approachable; in a real application, one would use JWTs or
 similar tokens instead of returning the user ID directly.
 """
 
+import os, tempfile, pathlib, contextlib
+
+temp_db_path = os.path.join(tempfile.gettempdir(), "prediction_market.db")
+
+# 🔥 Nuke any stale DB file from prior boot
+with contextlib.suppress(FileNotFoundError):
+    os.remove(temp_db_path)
+
+
 from typing import List, Optional
 
 from fastapi import Depends, FastAPI, HTTPException, status
@@ -27,20 +36,6 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import tempfile
 
-# Always use a brand-new, ephemeral DB in Render
-temp_db_path = os.path.join(tempfile.gettempdir(), "prediction_market.db")
-DATABASE_URL = f"sqlite:///{temp_db_path}"
-print(f"📀 Using ephemeral DB: {DATABASE_URL}")
-
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 from backend.database import Base, engine, get_db
 from backend.models import User, Market, Bet, PriceHistory
