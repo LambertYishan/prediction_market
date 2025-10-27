@@ -96,6 +96,7 @@ class PriceHistory(Base):
 
 class PriceHistory(Base):
     __tablename__ = "price_history"
+    __table_args__ = {'extend_existing': True} 
 
     id = Column(Integer, primary_key=True, index=True)
     market_id = Column(Integer, ForeignKey("markets.id"))
