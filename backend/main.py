@@ -22,29 +22,26 @@ import os
 import pathlib
 
 
-# --- FORCE CLEANUP OF STALE LOCAL SQLITE FILES (Render Free Tier Safe) ---
+from sqlalchemy import create_engine
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+import tempfile
 
+# Always use a brand-new, ephemeral DB in Render
+temp_db_path = os.path.join(tempfile.gettempdir(), "prediction_market.db")
+DATABASE_URL = f"sqlite:///{temp_db_path}"
+print(f"📀 Using ephemeral DB: {DATABASE_URL}")
 
-for old_db in ["backend/market.db", "backend/database.db"]:
-    db_file = pathlib.Path(old_db)
-    if db_file.exists():
-        try:
-            db_file.unlink()
-            print(f"🧹 Deleted stale DB file: {old_db}")
-        except Exception as e:
-            print(f"⚠️ Could not delete {old_db}: {e}")
-# --- END CLEANUP ---
+engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
 
-
-# --- SAFELY RESET STALE SQLITE SCHEMA (Render fix) ---
-db_path = pathlib.Path("backend/database.db")
-if db_path.exists():
-    # Rename old database to avoid cached index conflicts
-    backup_name = f"backend/database_backup_{int(datetime.now().timestamp())}.db"
-    os.rename(db_path, backup_name)
-    print(f" Renamed old database to {backup_name} to clear stale index conflicts.")
-# --- END RESET ---
-
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 from backend.database import Base, engine, get_db
 from backend.models import User, Market, Bet, PriceHistory
