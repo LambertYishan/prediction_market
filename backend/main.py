@@ -34,7 +34,6 @@ print(f"📀 Using ephemeral DB: {DATABASE_URL}")
 
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
 
 def get_db():
     db = SessionLocal()
@@ -57,15 +56,6 @@ load_dotenv()
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "lambert")  # fallback if .env missing
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "predictionmarket123")
 
-
-# --- Drop old price_history table and its index if needed ---
-insp = inspect(engine)
-with engine.begin() as conn:
-    if "price_history" in insp.get_table_names():
-        conn.execute(text("DROP TABLE IF EXISTS price_history"))
-    # Drop any orphaned index left behind by SQLite
-    conn.execute(text("DROP INDEX IF EXISTS ix_price_history_id"))
-# --- End drop ---
 
 # Create database tables. In production you may want to manage migrations
 # separately using Alembic, but for a quick start this is convenient.
