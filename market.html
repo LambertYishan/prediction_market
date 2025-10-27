@@ -109,7 +109,7 @@
         const ctx = document.getElementById('priceChart').getContext('2d');
 
         try {
-          const resp = await fetch(`${API_BASE}/markets/${market.id}/history`);
+          const resp = await fetch(`${apiBase}/markets/${market.id}/history`);
           const history = await resp.json();
 
           if (!Array.isArray(history) || history.length === 0) {
