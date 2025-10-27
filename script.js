@@ -9,22 +9,33 @@ const apiBase = 'https://prediction-market-wy1h.onrender.com';
  * Update the user greeting in the navigation bar.
  * Shows username and balance if logged in.
  */
-function updateUserGreeting() {
+async function updateUserGreeting() {
   const username = localStorage.getItem('username');
-  const balance = localStorage.getItem('balance');
+  const userId = localStorage.getItem('user_id');
   const greetingEl = document.getElementById('user-greeting');
   const loginLink = document.getElementById('login-link');
   const logoutLink = document.getElementById('logout-link');
 
-  if (username) {
-    greetingEl.textContent = `Hello, ${username} (Balance: ${parseFloat(balance).toFixed(2)})`;
+  if (username && userId) {
+    try {
+      const res = await fetch(`${apiBase}/user/${userId}`);
+      if (res.ok) {
+        const userInfo = await res.json();
+        localStorage.setItem('balance', userInfo.balance);
+      }
+    } catch (err) {
+      console.warn("Failed to refresh user balance:", err);
+    }
+
+    const balance = localStorage.getItem('balance');
+    greetingEl.textContent = `Hello, ${username} (Balance: $${parseFloat(balance).toFixed(2)})`;
     greetingEl.classList.remove('hidden');
     if (loginLink) loginLink.classList.add('hidden');
     if (logoutLink) logoutLink.classList.remove('hidden');
   } else {
     greetingEl.classList.add('hidden');
     if (loginLink) loginLink.classList.remove('hidden');
-    if (logoutLink) logoutLink.classList.add('hidden'); 
+    if (logoutLink) logoutLink.classList.add('hidden');
   }
 }
 

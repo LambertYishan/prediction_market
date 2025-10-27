@@ -465,12 +465,12 @@ def get_price_history(market_id: int, db: Session = Depends(get_db)):
     ]
 
 @app.get("/markets/{market_id}/leaderboard")
-def get_market_leaderboard(market_id: int, db: Session = Depends(get_db)):
-    """
-    Return leaderboard for a market showing all participants and their payout or current value.
-    Before resolution: shows unrealized gain/loss.
-    After resolution: shows realized payout (1 per winning share, 0 for losing side).
-    """
+def get_leaderboard(market_id: int, db: Session = Depends(get_db)):
+    """Return a leaderboard for a given market, including all users with any stake,
+    even if payout is 0. Shows YES/NO shares, total spent, average price, and PnL."""
+    from sqlalchemy import func
+
+    # Get market outcome (if resolved)
     market = db.query(Market).filter(Market.id == market_id).first()
     if not market:
         raise HTTPException(status_code=404, detail="Market not found")
@@ -479,46 +479,56 @@ def get_market_leaderboard(market_id: int, db: Session = Depends(get_db)):
     if not bets:
         return []
 
-    leaderboard = defaultdict(lambda: {"yes": 0.0, "no": 0.0, "spent": 0.0})
-
+    leaderboard = {}
     for bet in bets:
-        side = bet.side.upper()
-        leaderboard[bet.user_id][side.lower()] += bet.amount
-        leaderboard[bet.user_id]["spent"] += bet.total_cost
+        u = bet.user_id
+        if u not in leaderboard:
+            leaderboard[u] = {
+                "username": bet.user.username,
+                "yes_shares": 0.0,
+                "no_shares": 0.0,
+                "spent": 0.0,
+                "payout": 0.0,
+                "avg_price_yes": None,
+                "avg_price_no": None,
+                "_price_sum_yes": 0.0,
+                "_price_sum_no": 0.0,
+                "_share_sum_yes": 0.0,
+                "_share_sum_no": 0.0,
+            }
+        if bet.side == "YES":
+            leaderboard[u]["yes_shares"] += bet.amount
+            leaderboard[u]["spent"] += bet.total_cost
+            leaderboard[u]["_price_sum_yes"] += bet.price * bet.amount
+            leaderboard[u]["_share_sum_yes"] += bet.amount
+        else:
+            leaderboard[u]["no_shares"] += bet.amount
+            leaderboard[u]["spent"] += bet.total_cost
+            leaderboard[u]["_price_sum_no"] += bet.price * bet.amount
+            leaderboard[u]["_share_sum_no"] += bet.amount
 
-    # Compute realized or unrealized PnL
-    result = []
-    for user_id, stats in leaderboard.items():
-        user = db.query(User).filter(User.id == user_id).first()
-        username = user.username if user else f"User {user_id}"
+    # Compute average prices and payouts
+    for u, row in leaderboard.items():
+        if row["_share_sum_yes"] > 0:
+            row["avg_price_yes"] = row["_price_sum_yes"] / row["_share_sum_yes"]
+        if row["_share_sum_no"] > 0:
+            row["avg_price_no"] = row["_price_sum_no"] / row["_share_sum_no"]
 
         if market.resolved:
-            # Realized payout
             if market.outcome == "YES":
-                payout = stats["yes"] * 1.0 - stats["spent"]
-            elif market.outcome == "NO":
-                payout = stats["no"] * 1.0 - stats["spent"]
+                row["payout"] = row["yes_shares"] * 1.0 - row["spent"]
             else:
-                payout = -stats["spent"]
+                row["payout"] = row["no_shares"] * 1.0 - row["spent"]
         else:
-            # Unrealized value: use current market prices
-            p_yes = price_yes(market.yes_shares, market.no_shares, market.liquidity)
-            p_no = 1.0 - p_yes
-            current_value = stats["yes"] * p_yes + stats["no"] * p_no
-            payout = current_value - stats["spent"]
+            # unrealized PnL — could be computed using latest LMSR prices later
+            row["payout"] = -row["spent"]
 
-        result.append({
-            "username": username,
-            "yes_shares": round(stats["yes"], 3),
-            "no_shares": round(stats["no"], 3),
-            "spent": round(stats["spent"], 2),
-            "payout": round(payout, 2)
-        })
+        # cleanup helper keys
+        for key in list(row.keys()):
+            if key.startswith("_"):
+                del row[key]
 
-    # Sort by highest payout
-    result.sort(key=lambda x: x["payout"], reverse=True)
-    return result
-
+    return list(leaderboard.values())
 
 
 @app.get("/")

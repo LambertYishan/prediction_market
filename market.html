@@ -47,6 +47,7 @@
             <th>YES Shares</th>
             <th>NO Shares</th>
             <th>Spent ($)</th>
+            <th>Avg Price/Share ($)</th>
             <th>Payout / PnL ($)</th>
           </tr>
         </thead>
@@ -182,6 +183,7 @@
             <td>${row.yes_shares}</td>
             <td>${row.no_shares}</td>
             <td>${row.spent}</td>
+            <td>${(row.avg_price_yes ?? row.avg_price_no ?? 0).toFixed(3)}</td>
             <td>${row.payout >= 0 ? "+" + row.payout.toFixed(2) : row.payout.toFixed(2)}</td>
           </tr>
         `).join("");
