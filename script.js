@@ -15,6 +15,7 @@ async function updateUserGreeting() {
   const greetingEl = document.getElementById('user-greeting');
   const loginLink = document.getElementById('login-link');
   const logoutLink = document.getElementById('logout-link');
+  const portalLink = document.getElementById('portal-link'); // ✅ new line
 
   if (username && userId) {
     try {
@@ -32,10 +33,12 @@ async function updateUserGreeting() {
     greetingEl.classList.remove('hidden');
     if (loginLink) loginLink.classList.add('hidden');
     if (logoutLink) logoutLink.classList.remove('hidden');
+    if (portalLink) portalLink.classList.remove('hidden');
   } else {
     greetingEl.classList.add('hidden');
     if (loginLink) loginLink.classList.remove('hidden');
     if (logoutLink) logoutLink.classList.add('hidden');
+    if (portalLink) portalLink.classList.add('hidden');
   }
 }
 
