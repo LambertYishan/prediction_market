@@ -713,6 +713,35 @@ def claim_daily_bonus(user_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"detail": f"✅ Bonus claimed! +50 credits added. New balance: {user.balance:.2f}"}
 
+@app.get("/markets/{market_id}", response_model=MarketResponse)
+def get_market(market_id: int, db: Session = Depends(get_db)):
+    market = db.query(Market).filter(Market.id == market_id).first()
+    if not market:
+        raise HTTPException(status_code=404, detail="Market not found")
+
+    b = market.liquidity
+    if market.resolved:
+        p_yes = 1.0 if market.outcome == "YES" else 0.0
+        p_no = 1.0 - p_yes
+    else:
+        p_yes = price_yes(market.yes_shares, market.no_shares, b)
+        p_no = 1.0 - p_yes
+
+    return MarketResponse(
+        id=market.id,
+        title=market.title,
+        description=market.description,
+        yes_shares=market.yes_shares,
+        no_shares=market.no_shares,
+        liquidity=market.liquidity,
+        resolved=market.resolved,
+        outcome=market.outcome,
+        price_yes=p_yes,
+        price_no=p_no,
+        created_at=market.created_at,
+        expires_at=market.expires_at
+    )
+
 
 @app.get("/")
 def root():
