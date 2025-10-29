@@ -302,14 +302,37 @@ def create_market(request: MarketCreateRequest, db: Session = Depends(get_db)):
 
 @app.delete("/markets/{market_id}")
 def delete_market(market_id: int, username: str, password: str, db: Session = Depends(get_db)):
-    """Allow the admin to delete a market entirely."""
+    """
+    Allow the admin to delete a market entirely.
+    When a market is deleted, all users who have invested will be refunded
+    their total_cost on each bet in that market.
+    """
     verify_admin(username, password)
     market = db.query(Market).filter(Market.id == market_id).first()
     if not market:
         raise HTTPException(status_code=404, detail="Market not found")
+
+    # Find all bets in this market
+    bets = db.query(Bet).filter(Bet.market_id == market_id).all()
+
+    # Refund invested credits to users
+    refunded_users = set()
+    for bet in bets:
+        user = db.query(User).filter(User.id == bet.user_id).first()
+        if user:
+            user.balance += bet.total_cost
+            refunded_users.add(user.username)
+
+    # Delete all bets and the market itself
+    db.query(Bet).filter(Bet.market_id == market_id).delete()
     db.delete(market)
     db.commit()
-    return {"detail": f"Market {market_id} deleted successfully"}
+
+    return {
+        "detail": f"✅ Market {market_id} deleted and refunded {len(refunded_users)} users.",
+        "refunded_users": list(refunded_users)
+    }
+
 
 
 
