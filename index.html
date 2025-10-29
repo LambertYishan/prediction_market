@@ -2,44 +2,170 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Prediction Markets</title>
+  <title>User Portal</title>
   <link rel="stylesheet" href="styles.css">
 </head>
+
 <body>
   <header>
-    <h1>Prediction Markets</h1>
+    <h1>Your Portal</h1>
     <nav>
       <a href="index.html">Home</a>
       <a href="admin.html">Admin</a>
-      <a id="login-link" href="login.html">Login / Register</a>
-      <a href="portal.html" id="portal-link" class="hidden">My Portal</a>
-      <a id="logout-link" href="#" class="hidden">Logout</a>
-      <span id="user-greeting" class="hidden"></span>
+      <a href="portal.html">My Portal</a>
+      <a href="#" id="logout-link">Logout</a>
+      <span id="user-greeting" style="margin-left:10px; font-weight:bold;"></span>
     </nav>
   </header>
 
   <main>
+    <!-- Profile -->
+    <section id="profile-section">
+      <h2>Profile Info</h2>
+      <p id="user-info"></p>
+      <button id="change-pass-btn">Change Password</button>
+      <button id="claim-bonus-btn">Claim Daily Return</button>
+      <p id="bonus-message"></p>
+    </section>
+
     <!-- Active Markets -->
-    <section id="active-section">
-      <h2>🟢 Active Markets</h2>
+    <section id="active-markets-section">
+      <h2>🟢 Active Markets You Invested In</h2>
       <div id="active-market-list" class="market-list"></div>
     </section>
-  
+
     <!-- Inactive Markets -->
-    <section id="inactive-section" style="margin-top: 30px;">
-      <h2>⚫ Inactive Markets</h2>
+    <section id="inactive-markets-section" style="margin-top:30px;">
+      <h2>⚫ Inactive (Expired) Markets</h2>
       <div id="inactive-market-list" class="market-list"></div>
+    </section>
+
+    <!-- Position History -->
+    <section id="history-section" style="margin-top:30px;">
+      <h2>Position History</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Market</th>
+            <th>Side</th>
+            <th>Amount</th>
+            <th>Price</th>
+            <th>Spent ($)</th>
+            <th>Outcome</th>
+            <th>PnL ($)</th>
+            <th>Time</th>
+          </tr>
+        </thead>
+        <tbody id="bets-body"></tbody>
+      </table>
+      <p id="lifetime-pnl"></p>
     </section>
   </main>
 
-
   <script src="script.js"></script>
   <script>
-    // On page load fetch markets and update user greeting
-    document.addEventListener('DOMContentLoaded', function() {
-      updateUserGreeting();
-      loadMarkets();
+    document.addEventListener('DOMContentLoaded', async () => {
+      await updateUserGreeting();
+
+      const userId = localStorage.getItem('user_id');
+      if (!userId) {
+        window.location.href = 'login.html';
+        return;
+      }
+
+      // Load user info
+      const userRes = await fetch(`${apiBase}/user/${userId}`);
+      const user = await userRes.json();
+      document.getElementById('user-info').textContent = `Username: ${user.username}`;
+
+      // Load bets to get user's markets
+      const betsRes = await fetch(`${apiBase}/user/${userId}/bets`);
+      const data = await betsRes.json();
+      const tbody = document.getElementById('bets-body');
+      const activeList = document.getElementById('active-market-list');
+      const inactiveList = document.getElementById('inactive-market-list');
+
+      // --- Betting History Table ---
+      if (!data.bets || data.bets.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8">No positions yet.</td></tr>';
+      } else {
+        tbody.innerHTML = data.bets.map(b => `
+          <tr>
+            <td>${b.market_title}</td>
+            <td>${b.side}</td>
+            <td>${b.amount.toFixed(2)}</td>
+            <td>${b.price.toFixed(2)}</td>
+            <td>${b.total_cost.toFixed(2)}</td>
+            <td>${b.outcome || '-'}</td>
+            <td>${b.pnl.toFixed(2)}</td>
+            <td>${new Date(b.timestamp).toLocaleString()}</td>
+          </tr>
+        `).join('');
+      }
+
+      document.getElementById('lifetime-pnl').textContent =
+        `Lifetime PnL: $${data.lifetime_pnl.toFixed(2)}`;
+
+      // --- Active / Inactive Markets ---
+      if (data.bets && data.bets.length > 0) {
+        // Unique market IDs user has participated in
+        const marketIds = [...new Set(data.bets.map(b => b.market_id))];
+
+        // Fetch each market’s info
+        for (const id of marketIds) {
+          const res = await fetch(`${apiBase}/markets/${id}`);
+          const market = await res.json();
+
+          const isActive = new Date(market.expires_at) > new Date();
+          const list = isActive ? activeList : inactiveList;
+
+          const marketCard = document.createElement('div');
+          marketCard.classList.add('market-card');
+          marketCard.innerHTML = `
+            <h3>${market.title}</h3>
+            <p>Expires: ${new Date(market.expires_at).toLocaleString()}</p>
+            <a href="market.html?id=${market.id}" class="btn">View Market</a>
+          `;
+          list.appendChild(marketCard);
+        }
+      }
+
+      // --- Change Password ---
+      document.getElementById('change-pass-btn').addEventListener('click', async () => {
+        const oldPass = prompt("Enter old password:");
+        const newPass = prompt("Enter new password:");
+        if (!oldPass || !newPass) return;
+
+        const res = await fetch(`${apiBase}/user/change_password`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            user_id: parseInt(userId),
+            old_password: oldPass,
+            new_password: newPass
+          })
+        });
+        const result = await res.json();
+        alert(result.detail || "Password updated successfully!");
+      });
+
+      // --- Claim Bonus ---
+      document.getElementById('claim-bonus-btn').addEventListener('click', async () => {
+        const msg = document.getElementById('bonus-message');
+        msg.textContent = 'Processing...';
+        try {
+          const res = await fetch(`${apiBase}/user/${userId}/claim_bonus`, { method: 'POST' });
+          const result = await res.json();
+          if (res.ok) {
+            msg.textContent = result.message || "✅ Daily bonus claimed!";
+            updateUserGreeting();
+          } else {
+            msg.textContent = result.detail || "⚠️ Unable to claim bonus.";
+          }
+        } catch {
+          msg.textContent = "Network error, please try again.";
+        }
+      });
     });
   </script>
 </body>
