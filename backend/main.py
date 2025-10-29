@@ -22,6 +22,8 @@ from typing import List, Optional
 
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from fastapi.requests import Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from collections import defaultdict
@@ -72,6 +74,25 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    """
+    Ensure all HTTPException responses include CORS headers.
+    This prevents the browser from masking 4xx/5xx JSON errors as 'Network errors'.
+    """
+    response = JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail},
+    )
+    origin = request.headers.get("origin")
+    if origin in [
+        "https://lambertyishan.github.io",
+        "https://lambertyishan.github.io/prediction_market"
+    ]:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+    return response
 
 
 def get_password_hash(password: str) -> str:
@@ -394,8 +415,13 @@ def resolve_market(request: ResolveRequest, db: Session = Depends(get_db)):
 
     # Detect timing of resolution
     now = datetime.now(timezone.utc)
-    if market.expires_at:
-        if now < market.expires_at:
+    # normalize market.expires_at for comparison
+    expires_at = market.expires_at
+    if expires_at and expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+
+    if expires_at:
+        if now < expires_at:
             resolution_note = "Resolved early by admin (before expiry)."
         else:
             resolution_note = "Resolved after natural expiry."
