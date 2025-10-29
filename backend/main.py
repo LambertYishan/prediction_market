@@ -648,6 +648,10 @@ def claim_daily_bonus(user_id: int, db: Session = Depends(get_db)):
 
     now = datetime.now(timezone.utc)
 
+    # Normalize stored timestamp to UTC if naive
+    if user.last_bonus_claim and user.last_bonus_claim.tzinfo is None:
+        user.last_bonus_claim = user.last_bonus_claim.replace(tzinfo=timezone.utc)
+
     # Check last claim time
     if user.last_bonus_claim:
         elapsed = now - user.last_bonus_claim
@@ -669,6 +673,7 @@ def claim_daily_bonus(user_id: int, db: Session = Depends(get_db)):
     user.last_bonus_claim = now
     db.commit()
     return {"detail": f"✅ Bonus claimed! +50 credits added. New balance: {user.balance:.2f}"}
+
 
 @app.get("/")
 def root():
