@@ -115,8 +115,7 @@ class MarketCreateRequest(BaseModel):
     expires_at: Optional[datetime] = Field(None, example="2025-12-31T23:59:00Z")
     admin_username: str
     admin_password: str
-
-
+    
 
 class BetRequest(BaseModel):
     user_id: int = Field(..., example=1)

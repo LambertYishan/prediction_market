@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,6 +8,7 @@
   <link rel="stylesheet" href="styles.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
+
 <body>
   <header>
     <h1>Market Details</h1>
@@ -36,6 +38,12 @@
     <section id="chart-section" class="hidden">
       <h3>Price History</h3>
       <canvas id="priceChart" width="400" height="200"></canvas>
+    </section>
+
+    <!-- Time Progress Chart -->
+    <section id="progress-chart-section" class="hidden">
+      <h3>Market Progress Over Time</h3>
+      <canvas id="progressChart" width="400" height="200"></canvas>
     </section>
 
     <!-- Leaderboard Section -->
@@ -73,112 +81,171 @@
       </form>
     </section>
   </main>
-<script src="script.js"></script>
-<script>
-  document.addEventListener('DOMContentLoaded', async function () {
-    updateUserGreeting();
-    const market = await loadMarketDetails();
-    console.log("Loaded market:", market);
-    console.log("Expires_at:", market?.expires_at);
+  <script src="script.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async function () {
+      updateUserGreeting();
+      const market = await loadMarketDetails();
+      console.log("Loaded market:", market);
+      console.log("Expires_at:", market?.expires_at);
 
-    // Countdown setup
-    if (market && market.expires_at) {
-      const countdownSection = document.getElementById('countdown-section');
-      countdownSection.classList.remove('hidden');
-      const endTime = new Date(market.expires_at);
-      const timerEl = document.getElementById('countdown-timer');
-      const tzEl = document.getElementById('timezones');
+      // Countdown setup
+      if (market && market.expires_at) {
+        const countdownSection = document.getElementById('countdown-section');
+        countdownSection.classList.remove('hidden');
+        const endTime = new Date(market.expires_at);
+        const timerEl = document.getElementById('countdown-timer');
+        const tzEl = document.getElementById('timezones');
 
-      const updateTimer = () => {
-        const diff = endTime - new Date();
-        if (diff <= 0) {
-          timerEl.textContent = "Market closed";
-          clearInterval(timer);
-          return;
+        const updateTimer = () => {
+          const diff = endTime - new Date();
+          if (diff <= 0) {
+            timerEl.textContent = "Market closed";
+            clearInterval(timer);
+            return;
+          }
+          const hrs = Math.floor(diff / 1000 / 60 / 60);
+          const mins = Math.floor((diff / 1000 / 60) % 60);
+          const secs = Math.floor((diff / 1000) % 60);
+          timerEl.textContent = `${hrs}h ${mins}m ${secs}s`;
+        };
+        updateTimer();
+        const timer = setInterval(updateTimer, 1000);
+
+        // 🌍 Show absolute expiration times in multiple zones
+        const timeOptions = { dateStyle: 'full', timeStyle: 'long' };
+        const timeStrings = [
+          { label: 'New York (EST)', tz: 'America/New_York' },
+          { label: 'London (GMT)', tz: 'Europe/London' },
+          { label: 'Beijing (UTC+8)', tz: 'Asia/Shanghai' },
+          { label: 'Tokyo (JST)', tz: 'Asia/Tokyo' },
+        ].map(t =>
+          `<p><strong>${t.label}:</strong> ${endTime.toLocaleString('en-US', { ...timeOptions, timeZone: t.tz })}</p>`
+        ).join('');
+        tzEl.innerHTML = timeStrings;
+      }
+
+      // Chart setup
+      if (market) {
+        const chartSection = document.getElementById('chart-section');
+        chartSection.classList.remove('hidden');
+        const ctx = document.getElementById('priceChart').getContext('2d');
+
+        try {
+          const resp = await fetch(`${apiBase}/markets/${market.id}/history`);
+          const history = await resp.json();
+
+          if (!Array.isArray(history) || history.length === 0) {
+            console.warn("No price history yet for this market.");
+            ctx.font = "16px sans-serif";
+            ctx.fillText("No price history yet — place a bet to start tracking!", 10, 50);
+            return;
+          }
+
+          const labels = history.map(p => new Date(p.timestamp).toLocaleString());
+          const yesPrices = history.map(p => p.price_yes);
+          const noPrices = history.map(p => p.price_no);
+
+          new Chart(ctx, {
+            type: 'line',
+            data: {
+              labels,
+              datasets: [
+                { label: 'YES Price', data: yesPrices, borderColor: 'green', tension: 0.3, fill: false },
+                { label: 'NO Price', data: noPrices, borderColor: 'red', tension: 0.3, fill: false }
+              ]
+            },
+            options: {
+              responsive: true,
+              scales: {
+                y: { min: 0, max: 1, title: { display: true, text: 'Price (0–1)' } },
+                x: { title: { display: true, text: 'Timestamp' }, ticks: { maxRotation: 45, minRotation: 45 } }
+              }
+            }
+          });
+          // ==================== Time Progress Chart ====================
+          const progressSection = document.getElementById('progress-chart-section');
+          progressSection.classList.remove('hidden');
+          const progressCtx = document.getElementById('progressChart').getContext('2d');
+
+          // Ensure market has created_at and expires_at
+          if (market.created_at && market.expires_at) {
+            const startTime = new Date(market.created_at);
+            const endTime = new Date(market.expires_at);
+
+            // Convert price history to fixed-interval data points (from creation → now)
+            const fullSpanMs = endTime - startTime;
+
+            // Build initial dataset (only up to current time)
+            const buildProgressData = (history) => {
+              const now = new Date();
+              const visiblePoints = history.filter(p => new Date(p.timestamp) <= now);
+              return {
+                labels: visiblePoints.map(p => new Date(p.timestamp).toLocaleTimeString()),
+                yesData: visiblePoints.map(p => p.price_yes),
+                noData: visiblePoints.map(p => p.price_no)
+              };
+            };
+
+            // Initialize with data up to now
+            let { labels, yesData, noData } = buildProgressData(history);
+
+            const progressChart = new Chart(progressCtx, {
+              type: 'line',
+              data: {
+                labels,
+                datasets: [
+                  { label: 'YES Price', data: yesData, borderColor: 'green', tension: 0.3, fill: false },
+                  { label: 'NO Price', data: noData, borderColor: 'red', tension: 0.3, fill: false }
+                ]
+              },
+              options: {
+                animation: false,
+                scales: {
+                  y: { min: 0, max: 1, title: { display: true, text: 'Price (0–1)' } },
+                  x: { title: { display: true, text: 'Time since creation' } }
+                }
+              }
+            });
+
+            // Live update every 10 seconds until expiry
+            const updater = setInterval(() => {
+              const now = new Date();
+              if (now >= endTime) {
+                clearInterval(updater);
+                return;
+              }
+              const updated = buildProgressData(history);
+              progressChart.data.labels = updated.labels;
+              progressChart.data.datasets[0].data = updated.yesData;
+              progressChart.data.datasets[1].data = updated.noData;
+              progressChart.update();
+            }, 10000);
+          }
+        } catch (err) {
+          console.error("Failed to load price history:", err);
         }
-        const hrs = Math.floor(diff / 1000 / 60 / 60);
-        const mins = Math.floor((diff / 1000 / 60) % 60);
-        const secs = Math.floor((diff / 1000) % 60);
-        timerEl.textContent = `${hrs}h ${mins}m ${secs}s`;
-      };
-      updateTimer();
-      const timer = setInterval(updateTimer, 1000);
 
-      // 🌍 Show absolute expiration times in multiple zones
-      const timeOptions = { dateStyle: 'full', timeStyle: 'long' };
-      const timeStrings = [
-        { label: 'New York (EST)', tz: 'America/New_York' },
-        { label: 'London (GMT)', tz: 'Europe/London' },
-        { label: 'Beijing (UTC+8)', tz: 'Asia/Shanghai' },
-        { label: 'Tokyo (JST)', tz: 'Asia/Tokyo' },
-      ].map(t =>
-        `<p><strong>${t.label}:</strong> ${endTime.toLocaleString('en-US', { ...timeOptions, timeZone: t.tz })}</p>`
-      ).join('');
-      tzEl.innerHTML = timeStrings;
-    }
+        // ✅ Load leaderboard once market is known
+        await loadLeaderboard(market.id);
+      }
+    });
 
-    // Chart setup
-    if (market) {
-      const chartSection = document.getElementById('chart-section');
-      chartSection.classList.remove('hidden');
-      const ctx = document.getElementById('priceChart').getContext('2d');
+    // Leaderboard rendering
+    async function loadLeaderboard(marketId) {
+      const section = document.getElementById("leaderboard-section");
+      const tbody = section.querySelector("tbody");
+      section.classList.remove("hidden");
 
       try {
-        const resp = await fetch(`${apiBase}/markets/${market.id}/history`);
-        const history = await resp.json();
-
-        if (!Array.isArray(history) || history.length === 0) {
-          console.warn("No price history yet for this market.");
-          ctx.font = "16px sans-serif";
-          ctx.fillText("No price history yet — place a bet to start tracking!", 10, 50);
+        const res = await fetch(`${apiBase}/markets/${marketId}/leaderboard`);
+        const data = await res.json();
+        if (!Array.isArray(data) || data.length === 0) {
+          tbody.innerHTML = "<tr><td colspan='5'>No participants yet.</td></tr>";
           return;
         }
 
-        const labels = history.map(p => new Date(p.timestamp).toLocaleString());
-        const yesPrices = history.map(p => p.price_yes);
-        const noPrices = history.map(p => p.price_no);
-
-        new Chart(ctx, {
-          type: 'line',
-          data: {
-            labels,
-            datasets: [
-              { label: 'YES Price', data: yesPrices, borderColor: 'green', tension: 0.3, fill: false },
-              { label: 'NO Price', data: noPrices, borderColor: 'red', tension: 0.3, fill: false }
-            ]
-          },
-          options: {
-            responsive: true,
-            scales: {
-              y: { min: 0, max: 1, title: { display: true, text: 'Price (0–1)' } },
-              x: { title: { display: true, text: 'Timestamp' }, ticks: { maxRotation: 45, minRotation: 45 } }
-            }
-          }
-        });
-      } catch (err) {
-        console.error("Failed to load price history:", err);
-      }
-
-      // ✅ Load leaderboard once market is known
-      await loadLeaderboard(market.id);
-    }
-  });
-
-  // Leaderboard rendering
-  async function loadLeaderboard(marketId) {
-    const section = document.getElementById("leaderboard-section");
-    const tbody = section.querySelector("tbody");
-    section.classList.remove("hidden");
-
-    try {
-      const res = await fetch(`${apiBase}/markets/${marketId}/leaderboard`);
-      const data = await res.json();
-      if (!Array.isArray(data) || data.length === 0) {
-        tbody.innerHTML = "<tr><td colspan='5'>No participants yet.</td></tr>";
-        return;
-      }
-
-      tbody.innerHTML = data.map(row => `
+        tbody.innerHTML = data.map(row => `
           <tr>
             <td>${row.username}</td>
             <td>${row.yes_shares}</td>
@@ -188,11 +255,12 @@
             <td>${row.payout >= 0 ? "+" + row.payout.toFixed(2) : row.payout.toFixed(2)}</td>
           </tr>
         `).join("");
-    } catch (err) {
-      console.error("Failed to load leaderboard:", err);
-      tbody.innerHTML = "<tr><td colspan='5'>Error loading leaderboard.</td></tr>";
+      } catch (err) {
+        console.error("Failed to load leaderboard:", err);
+        tbody.innerHTML = "<tr><td colspan='5'>Error loading leaderboard.</td></tr>";
+      }
     }
-  }
-</script>
+  </script>
 </body>
+
 </html>
