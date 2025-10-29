@@ -610,7 +610,36 @@ def change_password(req: PasswordChangeRequest, db: Session = Depends(get_db)):
     db.commit()
     return {"detail": "Password updated successfully"}
 
+@app.post("/user/{user_id}/claim_bonus")
+def claim_daily_bonus(user_id: int, db: Session = Depends(get_db)):
+    """Allow a user to claim 50 credits every 23 hours if balance ≤ 500."""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
 
+    now = datetime.now(timezone.utc)
+
+    # Check last claim time
+    if user.last_bonus_claim:
+        elapsed = now - user.last_bonus_claim
+        if elapsed < timedelta(hours=23):
+            remaining = timedelta(hours=23) - elapsed
+            hours = int(remaining.total_seconds() // 3600)
+            mins = int((remaining.total_seconds() % 3600) // 60)
+            raise HTTPException(
+                status_code=400,
+                detail=f"Bonus already claimed. Try again in {hours}h {mins}m."
+            )
+
+    # Check balance limit
+    if user.balance > 500:
+        raise HTTPException(status_code=400, detail="Balance too high to claim bonus (must be ≤ 500).")
+
+    # Apply bonus
+    user.balance += 50
+    user.last_bonus_claim = now
+    db.commit()
+    return {"detail": f"✅ Bonus claimed! +50 credits added. New balance: {user.balance:.2f}"}
 
 @app.get("/")
 def root():
