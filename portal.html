@@ -14,6 +14,7 @@
       <a href="index.html">Home</a>
       <a href="portal.html">My Portal</a>
       <a href="#" id="logout-link">Logout</a>
+      <span id="user-greeting" style="margin-left:10px; font-weight:bold;"></span>
     </nav>
   </header>
 
@@ -98,6 +99,30 @@
         });
         const result = await res.json();
         alert(result.detail || "Error updating password");
+      });
+
+      document.getElementById('claim-bonus-btn').addEventListener('click', async () => {
+        const userId = localStorage.getItem('user_id');
+        if (!userId) {
+          window.location.href = 'login.html';
+          return;
+        }
+
+        const msg = document.getElementById('bonus-message');
+        msg.textContent = 'Processing...';
+
+        try {
+          const res = await fetch(`${apiBase}/user/${userId}/claim_bonus`, { method: 'POST' });
+          const result = await res.json();
+          if (res.ok) {
+            msg.textContent = result.message || "✅ Daily bonus claimed!";
+            updateUserGreeting(); // refresh balance
+          } else {
+            msg.textContent = result.detail || "⚠️ Unable to claim bonus.";
+          }
+        } catch (err) {
+          msg.textContent = "Network error, please try again.";
+        }
       });
     });
   </script>
