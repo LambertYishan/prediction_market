@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <title>User Portal</title>
@@ -28,23 +29,50 @@
       <p id="bonus-message"></p>
     </section>
 
+    <!-- Membership Stats -->
+    <section id="membership-stats">
+      <h2>Membership Stats</h2>
+      <p id="days-member"></p>
+      <p id="days-since-login"></p>
+    </section>
+
+    <!-- Transaction History -->
+    <section id="transaction-history">
+      <h2>Transaction History</h2>
+      <table id="transaction-table" class="styled-table">
+        <thead>
+          <tr>
+            <th>Type</th>
+            <th>Market</th>
+            <th>Side / Outcome</th>
+            <th>Shares</th>
+            <th>Total ($)</th>
+            <th>Avg Price</th>
+            <th>Time</th>
+          </tr>
+        </thead>
+        <tbody id="transaction-body"></tbody>
+      </table>
+    </section>
+
+
     <!-- Position / History Table -->
     <section id="history-section">
       <h2>Position History</h2>
       <table id="styled-table"></table>
-        <thead>
-          <tr>
-            <th>Market</th>
-            <th>Side</th>
-            <th>Amount</th>
-            <th>Price</th>
-            <th>Spent ($)</th>
-            <th>Outcome</th>
-            <th>PnL ($)</th>
-            <th>Time</th>
-          </tr>
-        </thead>
-        <tbody id="bets-body"></tbody>
+      <thead>
+        <tr>
+          <th>Market</th>
+          <th>Side</th>
+          <th>Amount</th>
+          <th>Price</th>
+          <th>Spent ($)</th>
+          <th>Outcome</th>
+          <th>PnL ($)</th>
+          <th>Time</th>
+        </tr>
+      </thead>
+      <tbody id="bets-body"></tbody>
       </table>
       <p id="lifetime-pnl" style="margin-top:10px; font-weight:bold;"></p>
     </section>
@@ -129,4 +157,5 @@
     });
   </script>
 </body>
+
 </html>

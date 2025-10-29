@@ -189,6 +189,25 @@ class BetResponse(BaseModel):
     timestamp: str
     class Config:
         orm_mode = True
+        
+class UserStatsResponse(BaseModel):
+    user_id: int
+    username: str
+    days_member: int
+    days_since_login: Optional[int] = None
+    last_bet: Optional[dict] = None
+
+class TransactionItem(BaseModel):
+    type: str
+    market_title: Optional[str] = None
+    side_or_outcome: Optional[str] = None
+    shares: Optional[float] = None
+    total: float
+    avg_price: Optional[float] = None
+    timestamp: str
+    
+class TransactionListResponse(BaseModel):
+    transactions: List[TransactionItem]
 
 
 @app.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
@@ -406,6 +425,17 @@ def place_bet(request: BetRequest, db: Session = Depends(get_db)):
     db.add(bet)
     db.commit()
     db.refresh(bet)
+    
+    from backend.models import Transaction
+    txn = Transaction(
+        user_id=user.id,
+        type="BET_PLACED",
+        amount=-total_cost,
+        market_id=market.id,
+        description=f"Bought {request.amount:.2f} {side_upper} in '{market.title}' at avg ${price_per_share:.3f}"
+    )
+    db.add(txn)
+    db.commit()
 
     # compute new prices
     p_yes = price_yes(market.yes_shares, market.no_shares, market.liquidity)
@@ -479,7 +509,18 @@ def resolve_market(request: ResolveRequest, db: Session = Depends(get_db)):
         if credit_by_user:
             users = db.query(User).filter(User.id.in_(credit_by_user.keys())).all()
             for u in users:
+                credit = credit_by_user[u.id]
                 u.balance = (u.balance or 0.0) + credit_by_user[u.id]
+                
+                # NEW: log resolution payout (credit = positive amount)
+                from backend.models import Transaction
+                db.add(Transaction(
+                    user_id=u.id,
+                    type="RESOLUTION_PAYOUT",
+                    amount=credit,
+                    market_id=market.id,
+                    description=f"Payout for '{market.title}' ({outcome_upper})"
+                ))
 
         # 3️⃣ Mark market resolved
         market.resolved = True
@@ -741,6 +782,106 @@ def get_market(market_id: int, db: Session = Depends(get_db)):
         created_at=market.created_at,
         expires_at=market.expires_at
     )
+
+@app.get("/user/{user_id}/stats", response_model=UserStatsResponse)
+def get_user_stats(user_id: int, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    now = datetime.now(timezone.utc)
+
+    created_at = user.created_at
+    if created_at and created_at.tzinfo is None:
+        created_at = created_at.replace(tzinfo=timezone.utc)
+    days_member = (now - created_at).days if created_at else 0
+
+    days_since_login = None
+    if user.last_login:
+        last_login = user.last_login if user.last_login.tzinfo else user.last_login.replace(tzinfo=timezone.utc)
+        days_since_login = (now - last_login).days
+
+    # last bet summary
+    last_bet = (
+        db.query(Bet)
+        .filter(Bet.user_id == user_id)
+        .order_by(Bet.timestamp.desc())
+        .first()
+    )
+    last_bet_summary = None
+    if last_bet:
+        market = db.query(Market).filter(Market.id == last_bet.market_id).first()
+        last_bet_summary = {
+            "market_title": market.title if market else f"Market {last_bet.market_id}",
+            "side": last_bet.side,
+            "shares": last_bet.amount,
+            "avg_price": last_bet.price,
+            "total_spent": last_bet.total_cost,
+            "timestamp": last_bet.timestamp.isoformat()
+        }
+
+    return UserStatsResponse(
+        user_id=user.id,
+        username=user.username,
+        days_member=days_member,
+        days_since_login=days_since_login,
+        last_bet=last_bet_summary
+    )
+
+@app.get("/user/{user_id}/transactions", response_model=TransactionListResponse)
+def get_user_transactions(user_id: int, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # 1) Pull Transaction rows (BET_PLACED, RESOLUTION_PAYOUT, REFUND)
+    from backend.models import Transaction
+    txns = (
+        db.query(Transaction)
+        .filter(Transaction.user_id == user_id)
+        .order_by(Transaction.created_at.desc())
+        .all()
+    )
+
+    # 2) Map market titles
+    market_ids = list({t.market_id for t in txns if t.market_id})
+    markets = {m.id: m for m in db.query(Market).filter(Market.id.in_(market_ids)).all()}
+
+    # 3) Shape rows
+    items: List[TransactionItem] = []
+    for t in txns:
+        m = markets.get(t.market_id) if t.market_id else None
+        title = m.title if m else None
+
+        # Derive side/outcome & shares/avg when description came from /bet
+        side = None
+        shares = None
+        avg = None
+        if t.type == "BET_PLACED" and t.description:
+            # Description we wrote: "Bought {shares} {SIDE} in 'Title' at avg $X.XXX"
+            # Light parse: grab numbers/side when possible (optional)
+            import re
+            m_shares = re.search(r"Bought\s+([\d\.]+)", t.description)
+            m_side = re.search(r"\s(YES|NO)\s", t.description)
+            m_avg = re.search(r"avg\s+\$(\d+(\.\d+)?)", t.description)
+            if m_shares: shares = float(m_shares.group(1))
+            if m_side: side = m_side.group(1)
+            if m_avg: avg = float(m_avg.group(1))
+
+        if t.type == "RESOLUTION_PAYOUT" and m:
+            side = m.outcome or "—"  # outcome on market
+
+        items.append(TransactionItem(
+            type=t.type,
+            market_title=title,
+            side_or_outcome=side,
+            shares=shares,
+            total=round(t.amount, 2),
+            avg_price=avg,
+            timestamp=t.created_at.isoformat()
+        ))
+
+    return TransactionListResponse(transactions=items)
 
 
 @app.get("/")
