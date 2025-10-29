@@ -96,3 +96,13 @@ class PriceHistory(Base):
     timestamp = Column(DateTime, default=datetime.utcnow)
     price_yes = Column(Float)
     price_no = Column(Float)
+
+class Transaction(Base):
+    __tablename__ = "transactions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    type = Column(String, nullable=False)  # e.g. 'BET', 'PAYOUT', 'BONUS', 'REFUND'
+    amount = Column(Float, nullable=False)
+    description = Column(String, nullable=True)
+    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)

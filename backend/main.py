@@ -300,40 +300,56 @@ def create_market(request: MarketCreateRequest, db: Session = Depends(get_db)):
         price_no=0.5
     )
 
+from backend.models import User, Market, Bet, Transaction
+
 @app.delete("/markets/{market_id}")
 def delete_market(market_id: int, username: str, password: str, db: Session = Depends(get_db)):
     """
-    Allow the admin to delete a market entirely.
-    When a market is deleted, all users who have invested will be refunded
-    their total_cost on each bet in that market.
+    Allow admin to delete a market and refund all user investments.
+    Logs each refund in the Transaction table for auditing.
     """
     verify_admin(username, password)
+
     market = db.query(Market).filter(Market.id == market_id).first()
     if not market:
         raise HTTPException(status_code=404, detail="Market not found")
 
-    # Find all bets in this market
+    # Fetch all bets for this market
     bets = db.query(Bet).filter(Bet.market_id == market_id).all()
+    if not bets:
+        db.delete(market)
+        db.commit()
+        return {"detail": f"Market {market_id} deleted (no bets to refund)."}
 
-    # Refund invested credits to users
     refunded_users = set()
+    total_refunds = 0.0
+
     for bet in bets:
         user = db.query(User).filter(User.id == bet.user_id).first()
         if user:
-            user.balance += bet.total_cost
+            refund_amount = bet.total_cost
+            user.balance += refund_amount
             refunded_users.add(user.username)
+            total_refunds += refund_amount
 
-    # Delete all bets and the market itself
+            # Log the refund transaction
+            txn = Transaction(
+                user_id=user.id,
+                type="REFUND",
+                amount=refund_amount,
+                description=f"Refund from deleted market '{market.title}' (ID {market.id})"
+            )
+            db.add(txn)
+
+    # Clean up bets and market
     db.query(Bet).filter(Bet.market_id == market_id).delete()
     db.delete(market)
     db.commit()
 
     return {
-        "detail": f"✅ Market {market_id} deleted and refunded {len(refunded_users)} users.",
+        "detail": f"✅ Market {market_id} deleted and {len(refunded_users)} users refunded ${total_refunds:.2f}.",
         "refunded_users": list(refunded_users)
     }
-
-
 
 
 @app.post("/bet", response_model=BetResponse)
