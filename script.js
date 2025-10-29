@@ -143,43 +143,6 @@ async function loadMarkets() {
   }
 }
 
-// --- Membership Stats ---
-const created = new Date(user.created_at);
-const lastLogin = new Date(user.last_login);
-const now = new Date();
-
-const daysMember = Math.floor((now - created) / (1000 * 60 * 60 * 24));
-const daysSinceLogin = Math.floor((now - lastLogin) / (1000 * 60 * 60 * 24));
-
-document.getElementById('days-member').textContent =
-  `👤 Member for ${daysMember} day${daysMember !== 1 ? 's' : ''}`;
-document.getElementById('days-since-login').textContent =
-  `⏱️ Last login ${daysSinceLogin} day${daysSinceLogin !== 1 ? 's' : ''} ago`;
-
-// --- Transaction History ---
-const txBody = document.getElementById('transaction-body');
-if (!user.transactions || user.transactions.length === 0) {
-  txBody.innerHTML = '<tr><td colspan="7">No transactions yet.</td></tr>';
-} else {
-  txBody.innerHTML = user.transactions.map(t => {
-    let side = t.side || t.outcome || '-';
-    let shares = t.shares ? t.shares.toFixed(2) : '-';
-    let total = t.total_spent || t.payout || t.refund || 0;
-    let avg = t.avg_price ? t.avg_price.toFixed(3) : '-';
-    return `
-      <tr>
-        <td>${t.type.replace(/_/g, ' ')}</td>
-        <td>${t.market_title}</td>
-        <td>${side}</td>
-        <td>${shares}</td>
-        <td>${total.toFixed(2)}</td>
-        <td>${avg}</td>
-        <td>${new Date(t.timestamp).toLocaleString()}</td>
-      </tr>`;
-  }).join('');
-}
-
-
 /**
  * Extract a query parameter by name.
  */
@@ -354,6 +317,47 @@ async function deleteMarket(marketId, username, password) {
     return { detail: 'Request failed' };
   }
 }
+
+function renderMembershipStats(user) {
+  const created = new Date(user.created_at || Date.now());
+  const lastLogin = new Date(user.last_login || Date.now());
+  const now = new Date();
+
+  const daysMember = Math.floor((now - created) / (1000 * 60 * 60 * 24));
+  const daysSinceLogin = Math.floor((now - lastLogin) / (1000 * 60 * 60 * 24));
+
+  document.getElementById("days-member").textContent =
+    `👤 Member for ${daysMember} day${daysMember !== 1 ? "s" : ""}`;
+  document.getElementById("days-since-login").textContent =
+    `⏱️ Last login ${daysSinceLogin} day${daysSinceLogin !== 1 ? "s" : ""} ago`;
+}
+
+function renderTransactions(user) {
+  const txBody = document.getElementById("transaction-body");
+  if (!user.transactions || user.transactions.length === 0) {
+    txBody.innerHTML = "<tr><td colspan='7'>No transactions yet.</td></tr>";
+  } else {
+    txBody.innerHTML = user.transactions
+      .map((t) => {
+        const side = t.side || t.outcome || "-";
+        const shares = t.shares ? t.shares.toFixed(2) : "-";
+        const total = t.total_spent || t.payout || t.refund || 0;
+        const avg = t.avg_price ? t.avg_price.toFixed(3) : "-";
+        return `
+          <tr>
+            <td>${t.type.replace(/_/g, " ")}</td>
+            <td>${t.market_title}</td>
+            <td>${side}</td>
+            <td>${shares}</td>
+            <td>${total.toFixed(2)}</td>
+            <td>${avg}</td>
+            <td>${new Date(t.timestamp).toLocaleString()}</td>
+          </tr>`;
+      })
+      .join("");
+  }
+}
+
 
 // =============================================================
 // Expose functions globally (for inline scripts)

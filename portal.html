@@ -58,20 +58,20 @@
     <!-- Position / History Table -->
     <section id="history-section">
       <h2>Position History</h2>
-      <table id="transaction-table" class="styled-table">
-      <thead>
-        <tr>
-          <th>Market</th>
-          <th>Side</th>
-          <th>Amount</th>
-          <th>Price</th>
-          <th>Spent ($)</th>
-          <th>Outcome</th>
-          <th>PnL ($)</th>
-          <th>Time</th>
-        </tr>
-      </thead>
-      <tbody id="bets-body"></tbody>
+      <table id="positionHistory-table" class="styled-table">
+        <thead>
+          <tr>
+            <th>Market</th>
+            <th>Side</th>
+            <th>Amount</th>
+            <th>Price</th>
+            <th>Spent ($)</th>
+            <th>Outcome</th>
+            <th>PnL ($)</th>
+            <th>Time</th>
+          </tr>
+        </thead>
+        <tbody id="positionHistory-body"></tbody>
       </table>
       <p id="lifetime-pnl" style="margin-top:10px; font-weight:bold;"></p>
     </section>
@@ -95,7 +95,7 @@
       // Load user bets
       const betsRes = await fetch(`${apiBase}/user/${userId}/bets`);
       const data = await betsRes.json();
-      const tbody = document.getElementById('bets-body');
+      const tbody = document.getElementById('positionHistory-body');
 
       if (!data.bets || data.bets.length === 0) {
         tbody.innerHTML = '<tr><td colspan="8">No positions yet.</td></tr>';
@@ -113,6 +113,61 @@
           </tr>
         `).join('');
       }
+
+      // --- Membership Stats ---
+      try {
+        // Fetch membership stats (if your backend implements /user/{id}/stats)
+        const statsRes = await fetch(`${apiBase}/user/${userId}/stats`);
+        if (statsRes.ok) {
+          const stats = await statsRes.json();
+          const created = new Date(stats.created_at || user.created_at || Date.now());
+          const lastLogin = new Date(stats.last_login || user.last_login || Date.now());
+          const now = new Date();
+
+          const daysMember = Math.floor((now - created) / (1000 * 60 * 60 * 24));
+          const daysSinceLogin = Math.floor((now - lastLogin) / (1000 * 60 * 60 * 24));
+
+          document.getElementById("days-member").textContent =
+            `👤 Member for ${daysMember} day${daysMember !== 1 ? "s" : ""}`;
+          document.getElementById("days-since-login").textContent =
+            `⏱️ Last login ${daysSinceLogin} day${daysSinceLogin !== 1 ? "s" : ""} ago`;
+        } else {
+          document.getElementById("days-member").textContent = "Member stats unavailable.";
+        }
+      } catch (err) {
+        console.warn("Could not load membership stats:", err);
+      }
+
+      // --- Transaction History ---
+      try {
+        const txRes = await fetch(`${apiBase}/user/${userId}/transactions`);
+        const txData = await txRes.json();
+        const txBody = document.getElementById("transaction-body");
+
+        if (!txData.transactions || txData.transactions.length === 0) {
+          txBody.innerHTML = "<tr><td colspan='7'>No transactions yet.</td></tr>";
+        } else {
+          txBody.innerHTML = txData.transactions.map(t => {
+            const side = t.side_or_outcome || "-";
+            const shares = t.shares ? t.shares.toFixed(2) : "-";
+            const total = t.total || 0;
+            const avg = t.avg_price ? t.avg_price.toFixed(3) : "-";
+            return `
+        <tr>
+          <td>${t.type.replace(/_/g, " ")}</td>
+          <td>${t.market_title || "-"}</td>
+          <td>${side}</td>
+          <td>${shares}</td>
+          <td>${total.toFixed(2)}</td>
+          <td>${avg}</td>
+          <td>${new Date(t.timestamp).toLocaleString()}</td>
+        </tr>`;
+          }).join("");
+        }
+      } catch (err) {
+        console.error("Error loading transactions:", err);
+      }
+
 
       document.getElementById('lifetime-pnl').textContent =
         `Lifetime PnL: $${data.lifetime_pnl.toFixed(2)}`;
