@@ -193,20 +193,57 @@
             const progressChart = new Chart(progressCtx, {
               type: 'line',
               data: {
-                labels,
                 datasets: [
-                  { label: 'YES Price', data: yesData, borderColor: 'green', tension: 0.3, fill: false },
-                  { label: 'NO Price', data: noData, borderColor: 'red', tension: 0.3, fill: false }
+                  {
+                    label: 'YES Price',
+                    data: history.map(p => ({
+                      x: new Date(p.timestamp),
+                      y: p.price_yes
+                    })),
+                    borderColor: 'green',
+                    tension: 0.3,
+                    fill: false
+                  },
+                  {
+                    label: 'NO Price',
+                    data: history.map(p => ({
+                      x: new Date(p.timestamp),
+                      y: p.price_no
+                    })),
+                    borderColor: 'red',
+                    tension: 0.3,
+                    fill: false
+                  }
                 ]
               },
               options: {
                 animation: false,
                 scales: {
-                  y: { min: 0, max: 1, title: { display: true, text: 'Price (0–1)' } },
-                  x: { title: { display: true, text: 'Time since creation' } }
+                  x: {
+                    type: 'time',
+                    time: {
+                      unit: 'hour', // or 'minute' if you want finer granularity
+                      tooltipFormat: 'MMM d, yyyy HH:mm:ss'
+                    },
+                    title: {
+                      display: true,
+                      text: 'Timestamp'
+                    },
+                    min: startTime,
+                    max: endTime
+                  },
+                  y: {
+                    min: 0,
+                    max: 1,
+                    title: {
+                      display: true,
+                      text: 'Price (0–1)'
+                    }
+                  }
                 }
               }
             });
+
 
             // Live update every 10 seconds until expiry
             const updater = setInterval(() => {
@@ -250,7 +287,7 @@
             <td>${row.username}</td>
             <td>${row.yes_shares}</td>
             <td>${row.no_shares}</td>
-            <td>${row.spent}</td>
+            <td>${parseFloat(row.spent).toFixed(2)}</td>
             <td>${(row.avg_price_yes ?? row.avg_price_no ?? 0).toFixed(3)}</td>
             <td>${row.payout >= 0 ? "+" + row.payout.toFixed(2) : row.payout.toFixed(2)}</td>
           </tr>
