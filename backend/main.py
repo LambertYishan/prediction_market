@@ -64,7 +64,10 @@ app = FastAPI(title="Prediction Market API", version="0.1.0")
 # your frontend.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "https://lambertyishan.github.io",
+        "https://lambertyishan.github.io/prediction_market"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
