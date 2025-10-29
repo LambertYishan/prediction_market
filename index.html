@@ -4,10 +4,56 @@
   <meta charset="UTF-8">
   <title>Prediction Market</title>
   <link rel="stylesheet" href="styles.css">
+  <style>
+    /* --- optional quick styling for cards if not yet in styles.css --- */
+    .section-title {
+      margin-top: 30px;
+      margin-bottom: 10px;
+      border-bottom: 2px solid #ccc;
+      padding-bottom: 5px;
+    }
+    .market-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+    }
+    .market-card {
+      border: 1px solid #ddd;
+      border-radius: 10px;
+      padding: 15px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      background-color: #fff;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .market-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+    }
+    .market-card h3 {
+      margin: 0 0 8px 0;
+      font-size: 1.1em;
+    }
+    .market-card p {
+      margin: 4px 0;
+    }
+    .btn {
+      display: inline-block;
+      margin-top: 6px;
+      padding: 6px 10px;
+      background-color: #1976d2;
+      color: white;
+      border-radius: 6px;
+      text-decoration: none;
+    }
+    .btn:hover {
+      background-color: #0d47a1;
+    }
+  </style>
 </head>
+
 <body>
   <header>
-    <h1>Available Markets</h1>
+    <h1>Prediction Market</h1>
     <nav>
       <a href="index.html">Home</a>
       <a href="admin.html">Admin</a>
@@ -18,7 +64,15 @@
   </header>
 
   <main>
-    <div id="market-list"></div>
+    <section>
+      <h2 class="section-title">🟢 Active Markets</h2>
+      <div id="active-markets" class="market-grid"></div>
+    </section>
+
+    <section>
+      <h2 class="section-title">⚫ Inactive Markets (Last 7 Days)</h2>
+      <div id="inactive-markets" class="market-grid"></div>
+    </section>
   </main>
 
   <script src="script.js"></script>
@@ -26,29 +80,67 @@
     document.addEventListener("DOMContentLoaded", async () => {
       await updateUserGreeting();
 
-      const res = await fetch(`${apiBase}/markets`);
-      const markets = await res.json();
+      try {
+        const res = await fetch(`${apiBase}/markets`);
+        if (!res.ok) throw new Error("Failed to load markets");
+        const markets = await res.json();
 
-      const container = document.getElementById("market-list");
-      container.innerHTML = "";
+        const activeContainer = document.getElementById("active-markets");
+        const inactiveContainer = document.getElementById("inactive-markets");
 
-      if (!markets || markets.length === 0) {
-        container.innerHTML = "<p>No markets available yet.</p>";
-        return;
-      }
+        activeContainer.innerHTML = "";
+        inactiveContainer.innerHTML = "";
 
-      for (const m of markets) {
-        const card = document.createElement("div");
-        card.classList.add("market-card");
-        card.innerHTML = `
-          <h2>${m.title}</h2>
-          <p>${m.description || ""}</p>
-          <p>Status: ${m.status}</p>
-          <p>YES: ${(m.price_yes * 100).toFixed(1)}% | NO: ${(m.price_no * 100).toFixed(1)}%</p>
-          <p>Expires: ${new Date(m.expires_at).toLocaleString()}</p>
-          <a href="market.html?id=${m.id}" class="btn">View Market</a>
-        `;
-        container.appendChild(card);
+        if (!markets || markets.length === 0) {
+          activeContainer.innerHTML = "<p>No markets available yet.</p>";
+          return;
+        }
+
+        const now = new Date();
+        const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+        for (const m of markets) {
+          const expiry = new Date(m.expires_at);
+          const isActive = expiry > now && !m.resolved;
+          const isRecentlyInactive = expiry <= now && expiry >= sevenDaysAgo;
+
+          if (!isActive && !isRecentlyInactive) continue; // skip older markets
+
+          // calculate time remaining / since expiry
+          let timeText = "";
+          const diffMs = expiry - now;
+          const diffHours = Math.abs(diffMs) / (1000 * 60 * 60);
+          if (isActive) {
+            if (diffHours < 1) timeText = `${Math.round(diffHours * 60)} min left`;
+            else timeText = `${diffHours.toFixed(1)} h left`;
+          } else {
+            timeText = `${Math.round(diffHours)} h ago`;
+          }
+
+          const card = document.createElement("div");
+          card.classList.add("market-card");
+          card.innerHTML = `
+            <h3>${m.title}</h3>
+            <p><strong>Status:</strong> ${isActive ? "🟢 Active" : "⚫ Inactive"}</p>
+            <p><strong>YES:</strong> ${(m.price_yes * 100).toFixed(1)}% &nbsp; | &nbsp; 
+               <strong>NO:</strong> ${(m.price_no * 100).toFixed(1)}%</p>
+            <p><strong>Expires:</strong> ${expiry.toLocaleString()}</p>
+            <p><em>${timeText}</em></p>
+            <a href="market.html?id=${m.id}" class="btn">View Market</a>
+          `;
+
+          if (isActive) activeContainer.appendChild(card);
+          else inactiveContainer.appendChild(card);
+        }
+
+        // fallback if empty
+        if (activeContainer.children.length === 0)
+          activeContainer.innerHTML = "<p>No active markets at the moment.</p>";
+        if (inactiveContainer.children.length === 0)
+          inactiveContainer.innerHTML = "<p>No recently expired markets.</p>";
+      } catch (err) {
+        console.error(err);
+        document.getElementById("active-markets").innerHTML = "<p>Error loading markets.</p>";
       }
     });
   </script>
