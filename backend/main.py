@@ -114,7 +114,7 @@ def verify_admin(username: str, password: str):
     if username != ADMIN_USERNAME or password != ADMIN_PASSWORD:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required"
+            detail="**Admin access required**"
         )
 
 
