@@ -310,6 +310,9 @@ def list_markets(db: Session = Depends(get_db)):
     response = []
     for m in markets:
         b = m.liquidity
+        expires_at = m.expires_at
+        if expires_at and expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
         if m.resolved:
             p_yes = 1.0 if m.outcome == "YES" else 0.0
             p_no = 1.0 - p_yes
