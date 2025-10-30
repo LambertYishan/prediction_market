@@ -300,7 +300,6 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
     db.commit()
     
     return {"id": user.id, "username": user.username, "balance": user.balance}
-
 @app.get("/markets", response_model=List[MarketResponse])
 def list_markets(db: Session = Depends(get_db)):
     """Return all markets with current prices and status labels."""
@@ -309,15 +308,24 @@ def list_markets(db: Session = Depends(get_db)):
 
     response = []
     for m in markets:
-        b = m.liquidity
+        b = m.liquidity  # <-- don’t forget this; it’s needed later
+
+        # ✅ Normalize expires_at to be timezone-aware before comparing
         expires_at = m.expires_at
         if expires_at and expires_at.tzinfo is None:
             expires_at = expires_at.replace(tzinfo=timezone.utc)
+
+        # ✅ Normalize created_at too (just in case)
+        created_at = m.created_at
+        if created_at and created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=timezone.utc)
+
+        # ✅ Use normalized expires_at in the comparison
         if m.resolved:
             p_yes = 1.0 if m.outcome == "YES" else 0.0
             p_no = 1.0 - p_yes
             status = "resolved"
-        elif m.expires_at and m.expires_at < now:
+        elif expires_at and expires_at < now:
             p_yes = price_yes(m.yes_shares, m.no_shares, b)
             p_no = 1.0 - p_yes
             status = "expired"
@@ -337,11 +345,11 @@ def list_markets(db: Session = Depends(get_db)):
             outcome=m.outcome,
             price_yes=p_yes,
             price_no=p_no,
-            created_at=m.created_at,
-            expires_at=m.expires_at
-        ).dict() | {"status": status})  # add dynamic status field
-    return response
+            created_at=created_at,
+            expires_at=expires_at
+        ).dict() | {"status": status})
 
+    return response
 
 
 @app.post("/markets", response_model=MarketResponse, status_code=status.HTTP_201_CREATED)

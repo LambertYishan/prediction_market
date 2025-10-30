@@ -107,7 +107,7 @@ async function loadMarkets() {
     // Render helper
     function renderMarketCard(m) {
       const expiryLine = m.expires_at
-        ? `<p><strong>Expires:</strong> ${new Date(m.expires_at).toLocaleString()}</p>`
+        ? `<p><strong>Expires:</strong> ${parseUtc(m.expires_at).toLocaleString()}</p>`
         : '';
       const statusLabel =
         m.status === 'resolved'
@@ -192,7 +192,7 @@ async function loadMarketDetails() {
     // Render market details
     const localTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
     const expiryLine = market.expires_at
-      ? `<p><strong>Expires (${localTz}):</strong> ${new Date(market.expires_at).toLocaleString('en-US', {
+      ? `<p><strong>Expires (${localTz}):</strong> ${parseUtc(market.expires_at).toLocaleString('en-US', {
         timeZone: localTz,
         dateStyle: 'medium',
         timeStyle: 'short'
@@ -358,7 +358,7 @@ function renderTransactions(user) {
         const avg = t.avg_price ? t.avg_price.toFixed(3) : "-";
 
         const localTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-        const formattedTime = new Date(t.timestamp).toLocaleString("en-US", {
+        const formattedTime = parseUtc(t.timestamp).toLocaleString("en-US", {
           timeZone: localTz,
           dateStyle: "medium",
           timeStyle: "short",
