@@ -347,7 +347,15 @@ def create_market(request: MarketCreateRequest, db: Session = Depends(get_db)):
     verify_admin(request.admin_username, request.admin_password)
 
     liquidity = request.liquidity if request.liquidity and request.liquidity > 0 else 100.0
-    expires_at = request.expires_at or datetime.now(timezone.utc) + timedelta(days=1)
+    expires_at = request.expires_at
+    if expires_at:
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        else:
+            expires_at = expires_at.astimezone(timezone.utc)
+    else:
+        expires_at = datetime.now(timezone.utc) + timedelta(days=1)
+
 
     market = Market(
         title=request.title,
@@ -372,8 +380,11 @@ def create_market(request: MarketCreateRequest, db: Session = Depends(get_db)):
         resolved=market.resolved,
         outcome=market.outcome,
         price_yes=0.5,
-        price_no=0.5
-    )
+        price_no=0.5,
+        created_at=market.created_at,
+        expires_at=market.expires_at
+)
+
 
 from backend.models import User, Market, Bet, Transaction
 
@@ -514,7 +525,7 @@ def place_bet(request: BetRequest, db: Session = Depends(get_db)):
         amount=bet.amount,
         price=bet.price,
         total_cost=bet.total_cost,
-        timestamp=bet.timestamp.isoformat()
+        timestamp=bet.timestamp
     )
 
 
@@ -927,6 +938,10 @@ def get_user_transactions(user_id: int, db: Session = Depends(get_db)):
 
         if t.type == "RESOLUTION_PAYOUT" and m:
             side = m.outcome or "—"  # outcome on market
+            
+        ts = t.created_at
+        if ts and ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
 
         items.append(TransactionItem(
             type=t.type,
@@ -935,7 +950,7 @@ def get_user_transactions(user_id: int, db: Session = Depends(get_db)):
             shares=shares,
             total=round(t.amount, 2),
             avg_price=avg,
-            timestamp=t.created_at.isoformat()
+            timestamp=ts
         ))
 
     return TransactionListResponse(transactions=items)
