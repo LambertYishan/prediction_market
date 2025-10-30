@@ -858,18 +858,24 @@ def get_user_stats(user_id: int, db: Session = Depends(get_db)):
 
     now = datetime.now(timezone.utc)
 
+    # Ensure created_at is timezone-aware
     created_at = user.created_at
     if created_at and created_at.tzinfo is None:
         created_at = created_at.replace(tzinfo=timezone.utc)
     days_member = (now - created_at).days if created_at else 0
 
-    days_since_login = (now - last_login).days if user.last_login else None
-
+    # Safely compute last_login difference
     if user.last_login:
-        last_login = user.last_login if user.last_login.tzinfo else user.last_login.replace(tzinfo=timezone.utc)
+        last_login = (
+            user.last_login
+            if user.last_login.tzinfo
+            else user.last_login.replace(tzinfo=timezone.utc)
+        )
         days_since_login = (now - last_login).days
+    else:
+        days_since_login = None
 
-    # last bet summary
+    # Last bet summary
     last_bet = (
         db.query(Bet)
         .filter(Bet.user_id == user_id)
@@ -885,7 +891,7 @@ def get_user_stats(user_id: int, db: Session = Depends(get_db)):
             "shares": last_bet.amount,
             "avg_price": last_bet.price,
             "total_spent": last_bet.total_cost,
-            "timestamp": last_bet.timestamp.isoformat()
+            "timestamp": last_bet.timestamp.isoformat(),
         }
 
     return UserStatsResponse(
@@ -893,8 +899,9 @@ def get_user_stats(user_id: int, db: Session = Depends(get_db)):
         username=user.username,
         days_member=days_member,
         days_since_login=days_since_login,
-        last_bet=last_bet_summary
+        last_bet=last_bet_summary,
     )
+
 
 @app.get("/user/{user_id}/transactions", response_model=TransactionListResponse)
 def get_user_transactions(user_id: int, db: Session = Depends(get_db)):
