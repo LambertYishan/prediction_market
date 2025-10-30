@@ -812,7 +812,8 @@ def get_user_stats(user_id: int, db: Session = Depends(get_db)):
         created_at = created_at.replace(tzinfo=timezone.utc)
     days_member = (now - created_at).days if created_at else 0
 
-    days_since_login = None
+    days_since_login = (now - last_login).days if user.last_login else None
+
     if user.last_login:
         last_login = user.last_login if user.last_login.tzinfo else user.last_login.replace(tzinfo=timezone.utc)
         days_since_login = (now - last_login).days
