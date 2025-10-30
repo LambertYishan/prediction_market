@@ -212,7 +212,7 @@ class BetResponse(BaseModel):
     amount: float
     price: float
     total_cost: float
-    timestamp: str
+    timestamp: datetime
     @validator("timestamp", pre=True, always=True)
     def ensure_utc(cls, v):
         if v is None:
@@ -242,7 +242,7 @@ class TransactionItem(BaseModel):
     shares: Optional[float] = None
     total: float
     avg_price: Optional[float] = None
-    timestamp: str
+    timestamp: datetime
     
     @validator("timestamp", pre=True, always=True)
     def ensure_utc(cls, v):
