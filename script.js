@@ -183,9 +183,15 @@ async function loadMarketDetails() {
     else if (expiry && expiry < now) status = "expired";
 
     // Render market details
+    const localTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
     const expiryLine = market.expires_at
-      ? `<p><strong>Expires:</strong> ${new Date(market.expires_at).toLocaleString()}</p>`
+      ? `<p><strong>Expires (${localTz}):</strong> ${new Date(market.expires_at).toLocaleString('en-US', {
+        timeZone: localTz,
+        dateStyle: 'medium',
+        timeStyle: 'short'
+      })}</p>`
       : '';
+
     const statusLabel = status === "resolved"
       ? `<p><strong>Status:</strong> ✅ Resolved (${market.outcome})</p>`
       : status === "expired"
@@ -343,6 +349,14 @@ function renderTransactions(user) {
         const shares = t.shares ? t.shares.toFixed(2) : "-";
         const total = t.total_spent || t.payout || t.refund || 0;
         const avg = t.avg_price ? t.avg_price.toFixed(3) : "-";
+
+        const localTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        const formattedTime = new Date(t.timestamp).toLocaleString("en-US", {
+          timeZone: localTz,
+          dateStyle: "medium",
+          timeStyle: "short",
+        });
+
         return `
           <tr>
             <td>${t.type.replace(/_/g, " ")}</td>
@@ -351,7 +365,7 @@ function renderTransactions(user) {
             <td>${shares}</td>
             <td>${total.toFixed(2)}</td>
             <td>${avg}</td>
-            <td>${new Date(t.timestamp).toLocaleString()}</td>
+            <td>${formattedTime}</td>
           </tr>`;
       })
       .join("");
