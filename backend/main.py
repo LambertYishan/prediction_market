@@ -13,10 +13,6 @@ import os, tempfile, pathlib, contextlib
 
 temp_db_path = os.path.join(tempfile.gettempdir(), "prediction_market.db")
 
-# 🔥 Nuke any stale DB file from prior boot
-with contextlib.suppress(FileNotFoundError):
-    os.remove(temp_db_path)
-
 
 from typing import List, Optional
 
@@ -25,7 +21,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.requests import Request
 from fastapi.exceptions import RequestValidationError
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 from sqlalchemy.orm import Session
 from collections import defaultdict
 from sqlalchemy.exc import SQLAlchemyError
@@ -190,6 +186,20 @@ class MarketResponse(BaseModel):
     price_no: float
     created_at: Optional[datetime] = None
     expires_at: Optional[datetime] = None
+    
+    @validator("created_at", "expires_at", pre=True, always=True)
+    def ensure_utc(cls, v):
+        if v is None:
+            return v
+        if isinstance(v, str):
+            # Attempt to parse ISO strings (just in case DB or ORM returns them as strings)
+            v = datetime.fromisoformat(v.replace("Z", "+00:00"))
+        if v.tzinfo is None:
+            v = v.replace(tzinfo=timezone.utc)
+        else:
+            v = v.astimezone(timezone.utc)
+        return v
+
     class Config:
         orm_mode = True
 
@@ -203,6 +213,18 @@ class BetResponse(BaseModel):
     price: float
     total_cost: float
     timestamp: str
+    @validator("timestamp", pre=True, always=True)
+    def ensure_utc(cls, v):
+        if v is None:
+            return v
+        if isinstance(v, str):
+            v = datetime.fromisoformat(v.replace("Z", "+00:00"))
+        if v.tzinfo is None:
+            v = v.replace(tzinfo=timezone.utc)
+        else:
+            v = v.astimezone(timezone.utc)
+        return v
+    
     class Config:
         orm_mode = True
         
@@ -221,6 +243,18 @@ class TransactionItem(BaseModel):
     total: float
     avg_price: Optional[float] = None
     timestamp: str
+    
+    @validator("timestamp", pre=True, always=True)
+    def ensure_utc(cls, v):
+        if v is None:
+            return v
+        if isinstance(v, str):
+            v = datetime.fromisoformat(v.replace("Z", "+00:00"))
+        if v.tzinfo is None:
+            v = v.replace(tzinfo=timezone.utc)
+        else:
+            v = v.astimezone(timezone.utc)
+        return v
     
 class TransactionListResponse(BaseModel):
     transactions: List[TransactionItem]
@@ -257,8 +291,14 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
     In a production application you'd return a session or JWT token instead.
     """
     user = db.query(User).filter(User.username == request.username).first()
+    
+    
     if not user or not verify_password(request.password, user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid username or password")
+    # ✅ update last login time
+    user.last_login = datetime.now(timezone.utc)
+    db.commit()
+    
     return {"id": user.id, "username": user.username, "balance": user.balance}
 
 @app.get("/markets", response_model=List[MarketResponse])
