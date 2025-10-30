@@ -56,6 +56,7 @@ class Market(Base):
     liquidity = Column(Float, default=100.0, nullable=False)
     resolved = Column(Boolean, default=False, nullable=False)
     outcome = Column(String, nullable=True)  # 'YES', 'NO' or None
+    deleted = Column(Boolean, default=False)
 
     # 🆕 Added timestamps
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)

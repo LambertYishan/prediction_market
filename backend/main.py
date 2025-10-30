@@ -308,20 +308,22 @@ def list_markets(db: Session = Depends(get_db)):
 
     response = []
     for m in markets:
-        b = m.liquidity  # <-- don’t forget this; it’s needed later
+        b = m.liquidity
 
-        # ✅ Normalize expires_at to be timezone-aware before comparing
+        # ✅ Normalize timestamps to be timezone-aware
         expires_at = m.expires_at
         if expires_at and expires_at.tzinfo is None:
             expires_at = expires_at.replace(tzinfo=timezone.utc)
 
-        # ✅ Normalize created_at too (just in case)
         created_at = m.created_at
         if created_at and created_at.tzinfo is None:
             created_at = created_at.replace(tzinfo=timezone.utc)
 
-        # ✅ Use normalized expires_at in the comparison
-        if m.resolved:
+        # ✅ Status classification logic (now includes deleted)
+        if getattr(m, "deleted", False):  # safe if column newly added
+            p_yes, p_no = 0.0, 0.0
+            status = "deleted"
+        elif m.resolved:
             p_yes = 1.0 if m.outcome == "YES" else 0.0
             p_no = 1.0 - p_yes
             status = "resolved"
@@ -334,20 +336,24 @@ def list_markets(db: Session = Depends(get_db)):
             p_no = 1.0 - p_yes
             status = "active"
 
-        response.append(MarketResponse(
-            id=m.id,
-            title=m.title,
-            description=m.description,
-            yes_shares=m.yes_shares,
-            no_shares=m.no_shares,
-            liquidity=m.liquidity,
-            resolved=m.resolved,
-            outcome=m.outcome,
-            price_yes=p_yes,
-            price_no=p_no,
-            created_at=created_at,
-            expires_at=expires_at
-        ).dict() | {"status": status})
+        # ✅ Return combined object
+        response.append(
+            MarketResponse(
+                id=m.id,
+                title=m.title,
+                description=m.description,
+                yes_shares=m.yes_shares,
+                no_shares=m.no_shares,
+                liquidity=m.liquidity,
+                resolved=m.resolved,
+                outcome=m.outcome,
+                price_yes=p_yes,
+                price_no=p_no,
+                created_at=created_at,
+                expires_at=expires_at
+            ).dict()
+            | {"status": status}
+        )
 
     return response
 
@@ -398,12 +404,11 @@ def create_market(request: MarketCreateRequest, db: Session = Depends(get_db)):
 
 
 from backend.models import User, Market, Bet, Transaction
-
 @app.delete("/markets/{market_id}")
 def delete_market(market_id: int, username: str, password: str, db: Session = Depends(get_db)):
     """
-    Allow admin to delete a market and refund all user investments.
-    Logs each refund in the Transaction table for auditing.
+    Allow admin to mark a market as deleted and refund all user investments.
+    The market will remain visible in 'inactive' list for audit transparency.
     """
     verify_admin(username, password)
 
@@ -413,11 +418,6 @@ def delete_market(market_id: int, username: str, password: str, db: Session = De
 
     # Fetch all bets for this market
     bets = db.query(Bet).filter(Bet.market_id == market_id).all()
-    if not bets:
-        db.delete(market)
-        db.commit()
-        return {"detail": f"Market {market_id} deleted (no bets to refund)."}
-
     refunded_users = set()
     total_refunds = 0.0
 
@@ -429,24 +429,27 @@ def delete_market(market_id: int, username: str, password: str, db: Session = De
             refunded_users.add(user.username)
             total_refunds += refund_amount
 
-            # Log the refund transaction
-            txn = Transaction(
+            db.add(Transaction(
                 user_id=user.id,
                 type="REFUND",
                 amount=refund_amount,
                 description=f"Refund from deleted market '{market.title}' (ID {market.id})"
-            )
-            db.add(txn)
+            ))
 
-    # Clean up bets and market
+    # ❗ Instead of deleting the row, mark it as deleted
+    market.deleted = True
+    market.resolved = True          # treat as inactive/resolved
+    market.outcome = "DELETED"      # optional, for frontend labeling
+
+    # remove bets, keep audit trail
     db.query(Bet).filter(Bet.market_id == market_id).delete()
-    db.delete(market)
     db.commit()
 
     return {
-        "detail": f"✅ Market {market_id} deleted and {len(refunded_users)} users refunded ${total_refunds:.2f}.",
+        "detail": f"❌ Market {market_id} marked deleted; {len(refunded_users)} users refunded ${total_refunds:.2f}.",
         "refunded_users": list(refunded_users)
     }
+
 
 
 @app.post("/bet", response_model=BetResponse)
