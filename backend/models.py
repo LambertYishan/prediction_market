@@ -30,6 +30,7 @@ class User(Base):
     password_hash = Column(String, nullable=False)
     balance = Column(Float, default=100.0, nullable=False)
     last_bonus_claim = Column(DateTime, nullable=True)
+    last_login = Column(DateTime, nullable=True)
 
     bets = relationship("Bet", back_populates="user")
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
@@ -91,10 +92,9 @@ class Bet(Base):
 class PriceHistory(Base):
     __tablename__ = "price_history"
     __table_args__ = {'extend_existing': True} 
-
     id = Column(Integer, primary_key=True, index=True)
     market_id = Column(Integer, ForeignKey("markets.id"))
-    timestamp = Column(DateTime, default=datetime.utcnow)
+    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     price_yes = Column(Float)
     price_no = Column(Float)
 
