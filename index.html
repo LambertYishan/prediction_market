@@ -79,7 +79,7 @@
     </section>
 
     <section>
-      <h2 class="section-title">⚫ Inactive Markets (Last 7 Days)</h2>
+      <h2 class="section-title">⚫ Inactive Markets (Last 30 Days)</h2>
       <div id="inactive-markets" class="market-grid"></div>
     </section>
   </main>
@@ -106,42 +106,56 @@
         }
 
         const now = new Date();
-        const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
         for (const m of markets) {
-          const expiry = new Date(m.expires_at);
-          const isActive = expiry > now && !m.resolved;
-          const isRecentlyInactive = expiry <= now && expiry >= sevenDaysAgo;
+          const expiry = m.expires_at ? new Date(m.expires_at) : null;
+          const resolved = m.resolved === true;
+          const deleted = m.status === "deleted"; // optional if you track this
+          const isActive = expiry && expiry > now && !resolved && !deleted;
+
+          // inactive if resolved, deleted, or expired within last 30 days
+          const isRecentlyInactive =
+            (!isActive) && (
+              resolved ||
+              deleted ||
+              (expiry && expiry <= now && expiry >= thirtyDaysAgo)
+            );
 
           if (!isActive && !isRecentlyInactive) continue; // skip older markets
 
           // calculate time remaining / since expiry
           let timeText = "";
-          const diffMs = expiry - now;
-          const diffHours = Math.abs(diffMs) / (1000 * 60 * 60);
-          if (isActive) {
-            if (diffHours < 1) timeText = `${Math.round(diffHours * 60)} min left`;
-            else timeText = `${diffHours.toFixed(1)} h left`;
-          } else {
-            timeText = `${Math.round(diffHours)} h ago`;
+          if (expiry) {
+            const diffMs = expiry - now;
+            const diffHours = Math.abs(diffMs) / (1000 * 60 * 60);
+            if (isActive) {
+              if (diffHours < 1) timeText = `${Math.round(diffHours * 60)} min left`;
+              else timeText = `${diffHours.toFixed(1)} h left`;
+            } else {
+              timeText = `${Math.round(diffHours)} h ago`;
+            }
           }
 
           const card = document.createElement("div");
           card.classList.add("market-card");
           card.innerHTML = `
-            <h3>${m.title}</h3>
-            <p><strong>Status:</strong> ${isActive ? "🟢 Active" : "⚫ Inactive"}</p>
-            <p><strong>YES:</strong> ${(m.price_yes * 100).toFixed(1)}% &nbsp; | &nbsp; 
-               <strong>NO:</strong> ${(m.price_no * 100).toFixed(1)}%</p>
-            <p><strong>Expires (New York time):</strong> ${expiry.toLocaleString('en-US', {
-            timeZone: 'America/New_York',
-            dateStyle: 'medium',
-            timeStyle: 'short'
-          })}</p>
-
-            <p><em>${timeText}</em></p>
-            <a href="market.html?id=${m.id}" class="btn">View Market</a>
-          `;
+        <h3>${m.title}</h3>
+        <p><strong>Status:</strong>
+          ${isActive ? "🟢 Active"
+              : resolved ? "✅ Resolved"
+                : deleted ? "❌ Deleted"
+                  : "⚫ Expired"}</p>
+        <p><strong>YES:</strong> ${(m.price_yes * 100).toFixed(1)}% | 
+           <strong>NO:</strong> ${(m.price_no * 100).toFixed(1)}%</p>
+        ${expiry ? `<p><strong>Expires (NY time):</strong> ${expiry.toLocaleString('en-US', {
+                    timeZone: 'America/New_York',
+                    dateStyle: 'medium',
+                    timeStyle: 'short'
+                  })}</p>` : ""}
+        ${timeText ? `<p><em>${timeText}</em></p>` : ""}
+        <a href="market.html?id=${m.id}" class="btn">View Market</a>
+      `;
 
           if (isActive) activeContainer.appendChild(card);
           else inactiveContainer.appendChild(card);
@@ -151,13 +165,14 @@
         if (activeContainer.children.length === 0)
           activeContainer.innerHTML = "<p>No active markets at the moment.</p>";
         if (inactiveContainer.children.length === 0)
-          inactiveContainer.innerHTML = "<p>No recently expired markets.</p>";
+          inactiveContainer.innerHTML = "<p>No inactive markets in the last 30 days.</p>";
       } catch (err) {
         console.error(err);
         document.getElementById("active-markets").innerHTML = "<p>Error loading markets.</p>";
       }
     });
   </script>
+
 </body>
 
 </html>
