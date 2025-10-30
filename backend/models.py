@@ -102,6 +102,7 @@ class Transaction(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
+    market_id = Column(Integer, ForeignKey("markets.id"), nullable=True)  # ✅ new column
     type = Column(String, nullable=False)  # e.g. 'BET', 'PAYOUT', 'BONUS', 'REFUND'
     amount = Column(Float, nullable=False)
     description = Column(String, nullable=True)
