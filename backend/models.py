@@ -32,6 +32,7 @@ class User(Base):
     last_bonus_claim = Column(DateTime, nullable=True)
 
     bets = relationship("Bet", back_populates="user")
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
 
 class Market(Base):
@@ -102,8 +103,8 @@ class Transaction(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
-    market_id = Column(Integer, ForeignKey("markets.id"), nullable=True)  # ✅ new column
+    market_id = Column(Integer, ForeignKey("markets.id"), nullable=True) 
     type = Column(String, nullable=False)  # e.g. 'BET', 'PAYOUT', 'BONUS', 'REFUND'
     amount = Column(Float, nullable=False)
     description = Column(String, nullable=True)
-    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
