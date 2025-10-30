@@ -68,12 +68,27 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "https://lambertyishan.github.io",
-        "https://lambertyishan.github.io/prediction_market"
+        "https://lambertyishan.github.io/",
+        "https://lambertyishan.github.io/prediction_market",
+        "https://lambertyishan.github.io/prediction_market/"
     ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Add this extra handler for validation errors
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request, exc):
+    origin = request.headers.get("origin")
+    headers = {}
+    if origin and any(origin.startswith(o.rstrip("/")) for o in [
+        "https://lambertyishan.github.io",
+        "https://lambertyishan.github.io/prediction_market"
+    ]):
+        headers["Access-Control-Allow-Origin"] = origin
+        headers["Access-Control-Allow-Credentials"] = "true"
+    return JSONResponse(status_code=422, content={"detail": exc.errors()}, headers=headers)
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
