@@ -304,7 +304,7 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
 @app.get("/markets", response_model=List[MarketResponse])
 def list_markets(db: Session = Depends(get_db)):
     """Return all markets with current prices and status labels."""
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     markets = db.query(Market).all()
 
     response = []
@@ -648,7 +648,7 @@ def get_price_history(market_id: int, db: Session = Depends(get_db)):
     )
     return [
         {
-            "timestamp": r.timestamp.isoformat(),
+            "timestamp": r.timestamp,
             "price_yes": r.price_yes,
             "price_no": r.price_no,
         }
@@ -763,7 +763,7 @@ def get_user_bets(user_id: int, db: Session = Depends(get_db)):
             "amount": b.amount,
             "price": b.price,
             "total_cost": b.total_cost,
-            "timestamp": b.timestamp.isoformat(),
+            "timestamp": b.timestamp,
             "resolved": m.resolved,
             "outcome": m.outcome,
             "pnl": realized_pnl

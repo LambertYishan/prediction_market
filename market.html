@@ -99,7 +99,7 @@
       if (market && market.expires_at) {
         const countdownSection = document.getElementById('countdown-section');
         countdownSection.classList.remove('hidden');
-        const endTime = new Date(market.expires_at);
+        const endTime = parseUtc(market.expires_at);
         const timerEl = document.getElementById('countdown-timer');
         const tzEl = document.getElementById('timezones');
 
@@ -148,7 +148,7 @@
             return;
           }
 
-          const labels = history.map(p => new Date(p.timestamp).toLocaleString());
+          const labels = history.map(p => parseUtc(p.timestamp).toLocaleString());
           const yesPrices = history.map(p => p.price_yes);
           const noPrices = history.map(p => p.price_no);
 
@@ -176,8 +176,8 @@
 
           // Ensure market has created_at and expires_at
           if (market.created_at && market.expires_at) {
-            const startTime = new Date(market.created_at);
-            const endTime = new Date(market.expires_at);
+            const startTime = parseUtc(market.created_at);
+            const endTime = parseUtc(market.expires_at);
 
             // Convert price history to fixed-interval data points (from creation → now)
             const fullSpanMs = endTime - startTime;
@@ -185,9 +185,9 @@
             // Build initial dataset (only up to current time)
             const buildProgressData = (history) => {
               const now = new Date();
-              const visiblePoints = history.filter(p => new Date(p.timestamp) <= now);
+              const visiblePoints = history.filter(p => parseUtc(p.timestamp) <= now);
               return {
-                labels: visiblePoints.map(p => new Date(p.timestamp).toLocaleTimeString()),
+                labels: visiblePoints.map(p => parseUtc(p.timestamp).toLocaleTimeString()),
                 yesData: visiblePoints.map(p => p.price_yes),
                 noData: visiblePoints.map(p => p.price_no)
               };
@@ -203,7 +203,7 @@
                   {
                     label: 'YES Price',
                     data: history.map(p => ({
-                      x: new Date(p.timestamp),
+                      x: parseUtc(p.timestamp),
                       y: p.price_yes
                     })),
                     borderColor: 'green',
@@ -213,7 +213,7 @@
                   {
                     label: 'NO Price',
                     data: history.map(p => ({
-                      x: new Date(p.timestamp),
+                      x: parseUtc(p.timestamp),
                       y: p.price_no
                     })),
                     borderColor: 'red',

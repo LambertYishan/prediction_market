@@ -42,6 +42,13 @@ async function updateUserGreeting() {
   }
 }
 
+// --- Utility to safely parse timestamps as UTC ---
+const parseUtc = (ts) => {
+  if (!ts) return null;
+  return new Date(ts.endsWith("Z") ? ts : ts + "Z");
+};
+
+
 /**
  * Handle logout behavior.
  */
