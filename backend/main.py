@@ -976,6 +976,61 @@ def get_user_transactions(user_id: int, db: Session = Depends(get_db)):
 
     return TransactionListResponse(transactions=items)
 
+@app.get("/user/{user_id}/accuracy")
+def get_user_accuracy(user_id: int, db: Session = Depends(get_db)):
+    """Compute user's prediction accuracy across resolved markets."""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # get all user bets
+    bets = db.query(Bet).filter(Bet.user_id == user_id).all()
+    if not bets:
+        return {"accuracy": None, "message": "No bets yet"}
+
+    # group by market
+    from collections import defaultdict
+    positions = defaultdict(lambda: {"yes": 0.0, "no": 0.0})
+    market_ids = set()
+    for b in bets:
+        if b.side == "YES":
+            positions[b.market_id]["yes"] += b.amount
+        else:
+            positions[b.market_id]["no"] += b.amount
+        market_ids.add(b.market_id)
+
+    # fetch resolved markets
+    markets = (
+        db.query(Market)
+        .filter(Market.id.in_(market_ids), Market.resolved == True)
+        .all()
+    )
+
+    if not markets:
+        return {"accuracy": None, "message": "No resolved markets yet"}
+
+    correct = 0
+    total = 0
+
+    for m in markets:
+        pos = positions[m.id]
+        net = pos["yes"] - pos["no"]
+        if net == 0:
+            continue  # no effective position
+        total += 1
+        if (net > 0 and m.outcome == "YES") or (net < 0 and m.outcome == "NO"):
+            correct += 1
+
+    accuracy = round((correct / total) * 100, 2) if total > 0 else None
+
+    return {
+        "user_id": user.id,
+        "resolved_markets": total,
+        "correct_predictions": correct,
+        "accuracy": accuracy,
+        "message": "No resolved markets yet" if accuracy is None else None
+    }
+
 
 @app.get("/")
 def root():

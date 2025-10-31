@@ -379,6 +379,40 @@ function renderTransactions(user) {
   }
 }
 
+/**
+ * Fetch and render the user's prediction accuracy.
+ * Accuracy = (# of correctly predicted resolved markets) / (# of resolved markets user participated in)
+ */
+async function renderPredictionAccuracy(userId) {
+  try {
+    const res = await fetch(`${apiBase}/user/${userId}/bets`);
+    if (!res.ok) throw new Error("Failed to load bets");
+
+    const data = await res.json();
+    const bets = data.bets || [];
+
+    // Filter resolved markets
+    const resolved = bets.filter(b => b.resolved);
+    if (resolved.length === 0) {
+      document.getElementById('prediction-accuracy').textContent = "No resolved markets yet.";
+      return;
+    }
+
+    // Count correct predictions
+    let correct = 0;
+    for (const b of resolved) {
+      if (b.outcome && b.side === b.outcome) correct++;
+    }
+
+    const accuracy = (correct / resolved.length) * 100;
+    document.getElementById('prediction-accuracy').textContent =
+      `🎯 Prediction Accuracy: ${accuracy.toFixed(1)}% (${correct}/${resolved.length})`;
+  } catch (err) {
+    console.warn("Error loading prediction accuracy:", err);
+    document.getElementById('prediction-accuracy').textContent = "Prediction accuracy unavailable.";
+  }
+}
+
 
 // =============================================================
 // Expose functions globally (for inline scripts)
@@ -388,3 +422,4 @@ window.loadMarkets = loadMarkets;
 window.loadMarketDetails = loadMarketDetails;
 window.createMarket = createMarket;
 window.deleteMarket = deleteMarket;
+window.renderPredictionAccuracy = renderPredictionAccuracy;

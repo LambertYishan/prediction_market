@@ -29,12 +29,17 @@
       <p id="bonus-message"></p>
     </section>
 
-    <!-- Membership Stats -->
     <section id="membership-stats">
       <h2>Membership Stats</h2>
       <p id="days-member"></p>
       <p id="days-since-login"></p>
     </section>
+
+    <section id="performance-stats">
+      <h2>Performance</h2>
+      <p id="prediction-accuracy">Loading accuracy...</p>
+    </section>
+
 
     <!-- Transaction History -->
     <section id="transaction-history">
@@ -91,6 +96,7 @@
       const userRes = await fetch(`${apiBase}/user/${userId}`);
       const user = await userRes.json();
       document.getElementById('user-info').textContent = `Username: ${user.username}`;
+      await renderPredictionAccuracy(userId);
 
       // Load user bets
       const betsRes = await fetch(`${apiBase}/user/${userId}/bets`);
@@ -170,7 +176,7 @@
 
 
       document.getElementById('lifetime-pnl').textContent =
-        `Lifetime PnL: $${data.lifetime_pnl.toFixed(2)}`;
+        `Lifetime P&L: $${data.lifetime_pnl.toFixed(2)}`;
 
       // Change password
       document.getElementById('change-pass-btn').addEventListener('click', async () => {
@@ -230,4 +236,5 @@
     </p>
   </footer>
 </body>
+
 </html>
