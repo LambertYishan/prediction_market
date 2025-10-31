@@ -42,20 +42,26 @@ main {
 .market-list {
   display: flex;
   flex-wrap: wrap;
-  justify-content: center; 
+  justify-content: center;
   gap: 1.2rem;
+  align-items: stretch;
 }
+
 
 .market-card {
-  background-color: #ffffff;
-  border: 1px solid #e5e7eb;
+  background-color: #fff;
+  border: 1px solid #ccc;
   border-radius: 8px;
   padding: 1rem;
-  flex: 1 1 420px; 
+  margin-bottom: 12px;
+  flex: 1 1 420px;
   box-sizing: border-box;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+  line-height: 1.5;
+  word-wrap: break-word;
+  min-width: 340px;
+  max-width: 600px;
 }
-
 
 .market-card h3 {
   margin-top: 0;
@@ -141,15 +147,6 @@ button:hover {
   background-color: #f2f2f2;
 }
 
-/* === Admin Market Status Tags === */
-.market-card {
-  border: 1px solid #ccc;
-  border-radius: 8px;
-  padding: 12px;
-  margin-bottom: 12px;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-  background-color: #fff;
-}
 
 .market-card.expired-unresolved {
   border-color: #ffa726;
