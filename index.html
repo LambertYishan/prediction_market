@@ -96,11 +96,15 @@
                   : "⚫ Expired"}</p>
         <p><strong>YES:</strong> ${(m.price_yes * 100).toFixed(1)}% | 
            <strong>NO:</strong> ${(m.price_no * 100).toFixed(1)}%</p>
+        
+        ${deleted && m.deletion_note ?
+              `<p class="admin-note"><em>📝 Admin note:</em> ${m.deletion_note}</p>`
+              : ""}
         ${expiry ? `<p><strong>Expires (NY time):</strong> ${expiry.toLocaleString('en-US', {
-                    timeZone: 'America/New_York',
-                    dateStyle: 'medium',
-                    timeStyle: 'short'
-                  })}</p>` : ""}
+                timeZone: 'America/New_York',
+                dateStyle: 'medium',
+                timeStyle: 'short'
+              })}</p>` : ""}
         ${timeText ? `<p><em>${timeText}</em></p>` : ""}
         <a href="market.html?id=${m.id}" class="btn">View Market</a>
       `;

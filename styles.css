@@ -205,3 +205,14 @@ button:hover {
 .styled-table tbody tr:hover {
   background-color: #e6f0ff;
 }
+
+.admin-note {
+  background-color: #fff8e1;
+  border-left: 4px solid #ffa000;
+  padding: 6px 10px;
+  border-radius: 6px;
+  margin-top: 6px;
+  font-size: 0.9em;
+  color: #5d4037;
+  line-height: 1.4;
+}

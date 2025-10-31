@@ -57,6 +57,7 @@ class Market(Base):
     resolved = Column(Boolean, default=False, nullable=False)
     outcome = Column(String, nullable=True)  # 'YES', 'NO' or None
     deleted = Column(Boolean, default=False)
+    deletion_note = Column(Text, nullable=True)  # Optional reason or note for admin deletions
 
     # 🆕 Added timestamps
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)

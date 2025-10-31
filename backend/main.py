@@ -16,12 +16,13 @@ temp_db_path = os.path.join(tempfile.gettempdir(), "prediction_market.db")
 
 from typing import List, Optional
 
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, HTTPException, status, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.requests import Request
 from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel, Field, validator
+from typing import Optional
 from sqlalchemy.orm import Session
 from collections import defaultdict
 from sqlalchemy.exc import SQLAlchemyError
@@ -186,6 +187,7 @@ class MarketResponse(BaseModel):
     price_no: float
     created_at: Optional[datetime] = None
     expires_at: Optional[datetime] = None
+    deletion_note: Optional[str] = None
     
     @validator("created_at", "expires_at", pre=True, always=True)
     def ensure_utc(cls, v):
@@ -405,10 +407,16 @@ def create_market(request: MarketCreateRequest, db: Session = Depends(get_db)):
 
 from backend.models import User, Market, Bet, Transaction
 @app.delete("/markets/{market_id}")
-def delete_market(market_id: int, username: str, password: str, db: Session = Depends(get_db)):
+def delete_market(
+    market_id: int,
+    username: str,
+    password: str,
+    note: Optional[str] = Query(None, description="Optional deletion note from admin"),
+    db: Session = Depends(get_db)
+):
     """
     Allow admin to mark a market as deleted and refund all user investments.
-    The market will remain visible in 'inactive' list for audit transparency.
+    Optionally logs an admin deletion note for transparency.
     """
     verify_admin(username, password)
 
@@ -436,10 +444,12 @@ def delete_market(market_id: int, username: str, password: str, db: Session = De
                 description=f"Refund from deleted market '{market.title}' (ID {market.id})"
             ))
 
-    # ❗ Instead of deleting the row, mark it as deleted
+    # 🆕 Soft-delete with optional admin note
     market.deleted = True
     market.resolved = True          # treat as inactive/resolved
-    market.outcome = "DELETED"      # optional, for frontend labeling
+    market.outcome = "DELETED"
+    if note:
+        market.deletion_note = note.strip()
 
     # remove bets, keep audit trail
     db.query(Bet).filter(Bet.market_id == market_id).delete()
@@ -447,9 +457,9 @@ def delete_market(market_id: int, username: str, password: str, db: Session = De
 
     return {
         "detail": f"❌ Market {market_id} marked deleted; {len(refunded_users)} users refunded ${total_refunds:.2f}.",
-        "refunded_users": list(refunded_users)
+        "refunded_users": list(refunded_users),
+        "deletion_note": note or None
     }
-
 
 
 @app.post("/bet", response_model=BetResponse)

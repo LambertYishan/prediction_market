@@ -216,10 +216,11 @@
     async function deleteMarketAdmin(id, username, password) {
       const msg = document.getElementById('market-delete-message');
       try {
-        const url = `${apiBase}/markets/${id}?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`;
+        const note = prompt("Enter deletion note (optional):") || "";
+        const url = `${apiBase}/markets/${id}?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&note=${encodeURIComponent(note)}`;
         const res = await fetch(url, { method: 'DELETE' });
         const data = await res.json();
-        msg.textContent = res.ok ? (data.detail || `✅ Market ${id} deleted`) : (data.detail || 'Error deleting market');
+        msg.textContent = res.ok ? (data.detail + (data.note ? ` — Note: ${data.note}` : "")) : (data.detail || 'Error deleting market');
       } catch {
         msg.textContent = 'Request failed.';
       }
