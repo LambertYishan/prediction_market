@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Admin Panel</title>
   <link rel="stylesheet" href="styles.css">
 </head>
+
 <body>
   <header>
     <h1>Admin Panel</h1>
@@ -30,8 +32,9 @@
           <input type="text" id="market-title" required>
         </label>
         <label>
-          Description:
-          <textarea id="market-description" rows="3"></textarea>
+          Description / Resolution Criteria:
+          <textarea id="market-description" rows="3" placeholder="Explain what this market is about and how it will be resolved. 
+          Example: YES if inflation in October exceeds 3.2%, NO otherwise."></textarea>
         </label>
         <label>
           Liquidity (b):
@@ -97,13 +100,13 @@
 
   <script src="script.js"></script>
   <script>
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function () {
       updateUserGreeting();
       loadMarketsAdmin();
 
       // CREATE MARKET
       const createForm = document.getElementById('create-market-form');
-      createForm.addEventListener('submit', async function(e) {
+      createForm.addEventListener('submit', async function (e) {
         e.preventDefault();
         const title = document.getElementById('market-title').value;
         const description = document.getElementById('market-description').value;
@@ -131,7 +134,7 @@
 
       // DELETE MARKET
       const deleteForm = document.getElementById('delete-market-form');
-      deleteForm.addEventListener('submit', async function(e) {
+      deleteForm.addEventListener('submit', async function (e) {
         e.preventDefault();
         const id = document.getElementById('delete-market-id').value;
         const username = document.getElementById('delete-admin-username').value;
@@ -228,7 +231,7 @@
         const body = JSON.stringify({ market_id: parseInt(marketId), outcome });
         const res = await fetch(apiBase + '/resolve', {
           method: 'POST',
-          headers: { 
+          headers: {
             'Content-Type': 'application/json',
             'Authorization': 'Basic ' + btoa(username + ':' + password) // optional, for clarity
           },
@@ -252,15 +255,20 @@
       border-collapse: collapse;
       margin-top: 1em;
     }
-    .admin-table th, .admin-table td {
+
+    .admin-table th,
+    .admin-table td {
       border: 1px solid #ccc;
       padding: 6px 10px;
       text-align: left;
     }
+
     .admin-table th {
       background-color: #f3f3f3;
     }
-    .delete-btn, .resolve-btn {
+
+    .delete-btn,
+    .resolve-btn {
       margin-right: 5px;
       border: none;
       padding: 5px 10px;
@@ -268,15 +276,19 @@
       border-radius: 4px;
       cursor: pointer;
     }
+
     .delete-btn {
       background-color: #e74c3c;
     }
+
     .delete-btn:hover {
       background-color: #c0392b;
     }
+
     .resolve-btn {
       background-color: #3498db;
     }
+
     .resolve-btn:hover {
       background-color: #2c80b4;
     }
@@ -301,4 +313,5 @@
     </p>
   </footer>
 </body>
+
 </html>
