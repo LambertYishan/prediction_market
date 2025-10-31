@@ -413,6 +413,86 @@ async function renderPredictionAccuracy(userId) {
   }
 }
 
+// =============================================================
+// Login / Register form logic (for login.html)
+// =============================================================
+document.addEventListener('DOMContentLoaded', () => {
+  const loginForm = document.getElementById('login-form');
+  const registerForm = document.getElementById('register-form');
+
+  // 🟢 Handle Login
+  if (loginForm) {
+    loginForm.addEventListener('submit', async function (e) {
+      e.preventDefault();
+      const username = document.getElementById('login-username').value.trim();
+      const password = document.getElementById('login-password').value;
+      const messageEl = document.getElementById('login-message');
+
+      try {
+        const res = await fetch(apiBase + '/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          messageEl.textContent = err.detail || 'Login failed';
+          return;
+        }
+        const data = await res.json();
+        localStorage.setItem('user_id', data.id);
+        localStorage.setItem('username', data.username);
+        localStorage.setItem('balance', data.balance);
+        messageEl.textContent = '✅ Logged in successfully!';
+        setTimeout(() => window.location.href = 'index.html', 500);
+      } catch {
+        messageEl.textContent = 'Request failed.';
+      }
+    });
+  }
+
+  // 🟢 Handle Registration
+  if (registerForm) {
+    registerForm.addEventListener('submit', async function (e) {
+      e.preventDefault();
+
+      const username = document.getElementById('register-username').value.trim();
+      const password = document.getElementById('register-password').value;
+      const confirm = document.getElementById('register-password-confirm')?.value;
+      const agree = document.getElementById('register-agree')?.checked;
+      const messageEl = document.getElementById('register-message');
+
+      // Client-side checks
+      if (confirm !== undefined && password !== confirm) {
+        messageEl.textContent = '⚠️ Passwords do not match.';
+        return;
+      }
+      if (agree !== undefined && !agree) {
+        messageEl.textContent = '⚠️ You must agree to the terms.';
+        return;
+      }
+
+      try {
+        const res = await fetch(apiBase + '/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          messageEl.textContent = err.detail || 'Registration failed';
+          return;
+        }
+        messageEl.textContent = '✅ Registered successfully. Please log in.';
+        registerForm.reset();
+      } catch {
+        messageEl.textContent = 'Request failed.';
+      }
+    });
+  }
+});
+
+
 
 // =============================================================
 // Expose functions globally (for inline scripts)
