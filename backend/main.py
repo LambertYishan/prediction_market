@@ -31,7 +31,7 @@ import os
 import pathlib
 
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, func
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import tempfile
@@ -130,6 +130,25 @@ def verify_admin(username: str, password: str):
             detail="**Admin access required**"
         )
 
+MAX_CREDITS_PER_MARKET = 100  # user cannot have more than 100 credits invested in a single market
+
+def check_investment_limit(user_id: int, market_id: int, invest_amount: float, db: Session):
+    """
+    Enforce that a user cannot have more than 100 credits invested in a given market.
+    This includes both YES and NO positions and does not net them.
+    Liquidated or resolved bets are ignored so credits can be freed.
+    """
+    total_invested = db.query(func.coalesce(func.sum(Bet.total_cost), 0.0))\
+        .filter(
+            Bet.user_id == user_id,
+            Bet.market_id == market_id
+        ).scalar() or 0.0
+
+    if total_invested + invest_amount > MAX_CREDITS_PER_MARKET:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Investment cap reached: you cannot invest more than {MAX_CREDITS_PER_MARKET} credits in a single market."
+        )
 
 
 # Pydantic models for request and response bodies. These enforce input
@@ -488,6 +507,9 @@ def place_bet(request: BetRequest, db: Session = Depends(get_db)):
     # Compute cost using current share counts and liquidity parameter
     total_cost = cost_for_shares(market.yes_shares, market.no_shares, request.amount, side_upper, market.liquidity)
 
+    # 🚫 Enforce per-market credit limit
+    check_investment_limit(user.id, market.id, total_cost, db)
+    
     # Ensure the user can afford the bet
     if user.balance < total_cost:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Insufficient balance to place bet")
@@ -551,6 +573,84 @@ def place_bet(request: BetRequest, db: Session = Depends(get_db)):
         total_cost=bet.total_cost,
         timestamp=bet.timestamp
     )
+
+@app.post("/sell")
+def sell_bet(
+    user_id: int = Query(..., description="User ID"),
+    market_id: int = Query(..., description="Market ID"),
+    side: str = Query(..., pattern="^(YES|NO|yes|no)$"),
+    shares_to_sell: float = Query(..., gt=0.0),
+    db: Session = Depends(get_db)
+):
+    """
+    Allow user to sell (liquidate) part or all of their position back to the LMSR pool.
+    Refunds the user according to the cost difference from reducing shares.
+    Frees up invested credits accordingly.
+    """
+    side_upper = side.upper()
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(404, "User not found")
+
+    market = db.query(Market).filter(Market.id == market_id).first()
+    if not market:
+        raise HTTPException(404, "Market not found")
+    if market.resolved:
+        raise HTTPException(400, "Market already resolved")
+
+    # ✅ Calculate cost difference (refund) using LMSR reversal
+    current_cost = cost_for_shares(
+        market.yes_shares, market.no_shares, shares_to_sell, side_upper, market.liquidity
+    )
+
+    # Reverse direction to simulate selling back to pool
+    if side_upper == "YES":
+        market.yes_shares -= shares_to_sell
+    else:
+        market.no_shares -= shares_to_sell
+
+    # The refund = decrease in LMSR total cost function
+    refund = current_cost
+    user.balance += refund
+
+    # 🧹 Delete or reduce user's Bet records proportionally
+    bets = (
+        db.query(Bet)
+        .filter(Bet.user_id == user_id, Bet.market_id == market_id, Bet.side == side_upper)
+        .order_by(Bet.timestamp.asc())
+        .all()
+    )
+    remaining = shares_to_sell
+    for b in bets:
+        if remaining <= 0:
+            break
+        if b.amount <= remaining:
+            remaining -= b.amount
+            db.delete(b)
+        else:
+            # partial reduction
+            portion = remaining / b.amount
+            b.amount -= remaining
+            b.total_cost *= (1 - portion)
+            remaining = 0
+
+    # Record transaction
+    from backend.models import Transaction
+    db.add(Transaction(
+        user_id=user.id,
+        type="SELL",
+        amount=refund,
+        market_id=market.id,
+        description=f"Sold {shares_to_sell:.2f} {side_upper} shares from '{market.title}' for ${refund:.2f}"
+    ))
+
+    db.commit()
+
+    return {
+        "detail": f"✅ Sold {shares_to_sell:.2f} {side_upper} shares for ${refund:.2f}. Balance now ${user.balance:.2f}",
+        "freed_credits": refund
+    }
 
 
 @app.post("/resolve", response_model=MarketResponse)
@@ -925,6 +1025,21 @@ def get_user_stats(user_id: int, db: Session = Depends(get_db)):
         days_since_login=days_since_login,
         last_bet=last_bet_summary,
     )
+
+
+@app.get("/user/{user_id}/invested/{market_id}")
+def get_user_investment(user_id: int, market_id: int, db: Session = Depends(get_db)):
+    """
+    Return the user's total active investment (in credits) in a given market.
+    Includes both YES and NO bets and ignores resolved markets.
+    """
+    total = (
+        db.query(func.coalesce(func.sum(Bet.total_cost), 0.0))
+        .filter(Bet.user_id == user_id, Bet.market_id == market_id)
+        .scalar()
+        or 0.0
+    )
+    return {"user_id": user_id, "market_id": market_id, "invested": round(total, 2)}
 
 
 @app.get("/user/{user_id}/transactions", response_model=TransactionListResponse)

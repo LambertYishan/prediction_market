@@ -166,7 +166,9 @@ async function loadMarketDetails() {
   const container = document.getElementById('market-container');
   const betContainer = document.getElementById('bet-container');
   if (!marketId || !container) return;
+
   container.innerHTML = 'Loading market...';
+  window.currentMarketId = marketId; // ✅ make global for sellPosition()
 
   try {
     const res = await fetch(apiBase + '/markets');
@@ -182,21 +184,21 @@ async function loadMarketDetails() {
       return;
     }
 
-    // Compute status locally (in case backend hasn’t yet added it)
+    // ✅ Compute status
     const now = new Date();
     const expiry = market.expires_at ? new Date(market.expires_at) : null;
     let status = "active";
     if (market.resolved) status = "resolved";
     else if (expiry && expiry < now) status = "expired";
 
-    // Render market details
+    // ✅ Render market details
     const localTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
     const expiryLine = market.expires_at
       ? `<p><strong>Expires (${localTz}):</strong> ${parseUtc(market.expires_at).toLocaleString('en-US', {
-        timeZone: localTz,
-        dateStyle: 'medium',
-        timeStyle: 'short'
-      })}</p>`
+          timeZone: localTz,
+          dateStyle: 'medium',
+          timeStyle: 'short'
+        })}</p>`
       : '';
 
     const statusLabel = status === "resolved"
@@ -215,6 +217,7 @@ async function loadMarketDetails() {
       <p><strong>YES Shares:</strong> ${market.yes_shares.toFixed(2)} &nbsp;|&nbsp;
          <strong>NO Shares:</strong> ${market.no_shares.toFixed(2)}</p>
       ${market.resolved ? `<p><strong>Outcome:</strong> ${market.outcome}</p>` : ''}
+      <p id="invested-display" style="font-weight:bold; margin-top:10px;">Invested: 0 / 100 credits</p>
     `;
 
     // 🟡 Disable betting if inactive
@@ -230,11 +233,26 @@ async function loadMarketDetails() {
           : `⚠️ This market has expired. Waiting for admin to resolve.`;
       container.appendChild(lockMsg);
     } else {
-      // 🟢 Active: show betting form
+      // 🟢 Active: show bet form + sell buttons
       betContainer.classList.remove('hidden');
       const betForm = document.getElementById('bet-form');
       const betMessage = document.getElementById('bet-message');
 
+      // ✅ Display current invested credits
+      const userId = localStorage.getItem('user_id');
+      if (userId) {
+        await showUserInvestment(userId, marketId);
+      }
+
+      // ✅ Add Sell buttons dynamically
+      const sellDiv = document.createElement('div');
+      sellDiv.innerHTML = `
+        <button onclick="sellPosition('YES')">Sell YES</button>
+        <button onclick="sellPosition('NO')">Sell NO</button>
+      `;
+      betContainer.appendChild(sellDiv);
+
+      // ✅ Handle new bets
       betForm.addEventListener('submit', async function (e) {
         e.preventDefault();
         const userId = localStorage.getItem('user_id');
@@ -263,21 +281,23 @@ async function loadMarketDetails() {
           const bet = await res.json();
           betMessage.textContent =
             `✅ Bet placed: ${bet.amount} shares @ ${bet.price.toFixed(2)} (cost: ${bet.total_cost.toFixed(2)})`;
-          // Refresh balance
+
+          // Refresh balance + invested
           const userRes = await fetch(apiBase + `/user/${userId}`);
           if (userRes.ok) {
             const userInfo = await userRes.json();
             localStorage.setItem('balance', userInfo.balance);
             updateUserGreeting();
           }
-          loadMarketDetails(); // reload page to refresh prices
+          await showUserInvestment(userId, marketId);
+          await loadMarketDetails(); // reload updated prices
         } catch (err) {
           betMessage.textContent = 'Request failed';
         }
       }, { once: true });
     }
 
-    // ✅ Return the market for chart and leaderboard
+    // ✅ Return the market for chart/leaderboard
     return market;
 
   } catch (err) {
@@ -378,6 +398,44 @@ function renderTransactions(user) {
       .join("");
   }
 }
+
+async function showUserInvestment(userId, marketId) {
+  const res = await fetch(`${apiBase}/user/${userId}/invested/${marketId}`);
+  const data = await res.json();
+  document.getElementById("invested-display").textContent =
+    `Invested: ${data.invested} / 100 credits`;
+}
+
+async function sellPosition(side) {
+  const userId = localStorage.getItem("user_id");
+  const marketId = window.currentMarketId; // ✅ reference global
+  const sharesToSell = parseFloat(prompt(`Enter ${side} shares to sell:`));
+  if (isNaN(sharesToSell) || sharesToSell <= 0) {
+    alert("Please enter a valid positive number of shares.");
+    return;
+  }
+  try {
+    const res = await fetch(`${apiBase}/sell?user_id=${userId}&market_id=${marketId}&side=${side}&shares_to_sell=${sharesToSell}`, {
+      method: "POST"
+    });
+    const data = await res.json();
+    alert(data.detail || JSON.stringify(data));
+
+    // Refresh balance + investment display
+    const userRes = await fetch(`${apiBase}/user/${userId}`);
+    if (userRes.ok) {
+      const userInfo = await userRes.json();
+      localStorage.setItem('balance', userInfo.balance);
+      updateUserGreeting();
+    }
+    await showUserInvestment(userId, marketId);
+    await loadMarketDetails();
+  } catch (err) {
+    console.error("Sell failed:", err);
+    alert("❌ Sell request failed.");
+  }
+}
+
 
 /**
  * Fetch and render the user's prediction accuracy.
