@@ -42,6 +42,14 @@
         if (!res.ok) throw new Error("Failed to load markets");
         const markets = await res.json();
 
+        // ✅ Sort by soonest expiry (ascending)
+        markets.sort((a, b) => {
+          const aExp = a.expires_at ? new Date(a.expires_at) : new Date(9999, 0, 1);
+          const bExp = b.expires_at ? new Date(b.expires_at) : new Date(9999, 0, 1);
+          return aExp - bExp;
+        });
+
+
         const activeContainer = document.getElementById("active-markets");
         const inactiveContainer = document.getElementById("inactive-markets");
 
@@ -100,6 +108,7 @@
         ${deleted && m.deletion_note ?
               `<p class="admin-note"><em>📝 Admin note:</em> ${m.deletion_note}</p>`
               : ""}
+            
         ${expiry ? `<p><strong>Expires (NY time):</strong> ${expiry.toLocaleString('en-US', {
                 timeZone: 'America/New_York',
                 dateStyle: 'medium',
