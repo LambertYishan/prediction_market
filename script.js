@@ -86,6 +86,13 @@ async function loadMarkets() {
     }
 
     const markets = await res.json();
+    // 🧮 Sort by soonest expiry (ascending)
+    markets.sort((a, b) => {
+      const aExp = a.expires_at ? new Date(a.expires_at) : new Date(9999, 0, 1);
+      const bExp = b.expires_at ? new Date(b.expires_at) : new Date(9999, 0, 1);
+      return aExp - bExp;
+    });
+
     if (!Array.isArray(markets) || markets.length === 0) {
       activeList.textContent = 'No markets found.';
       return;
@@ -195,10 +202,10 @@ async function loadMarketDetails() {
     const localTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
     const expiryLine = market.expires_at
       ? `<p><strong>Expires (${localTz}):</strong> ${parseUtc(market.expires_at).toLocaleString('en-US', {
-          timeZone: localTz,
-          dateStyle: 'medium',
-          timeStyle: 'short'
-        })}</p>`
+        timeZone: localTz,
+        dateStyle: 'medium',
+        timeStyle: 'short'
+      })}</p>`
       : '';
 
     const statusLabel = status === "resolved"
