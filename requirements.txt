@@ -4,4 +4,3 @@ sqlalchemy>=2.0.20
 pydantic>=1.10.0
 python-dotenv>=1.0.0
 psycopg[binary]
-
