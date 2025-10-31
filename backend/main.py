@@ -573,7 +573,6 @@ def place_bet(request: BetRequest, db: Session = Depends(get_db)):
         total_cost=bet.total_cost,
         timestamp=bet.timestamp
     )
-
 @app.post("/sell")
 def sell_bet(
     user_id: int = Query(..., description="User ID"),
@@ -584,8 +583,9 @@ def sell_bet(
 ):
     """
     Allow user to sell (liquidate) part or all of their position back to the LMSR pool.
-    Refunds the user according to the cost difference from reducing shares.
-    Frees up invested credits accordingly.
+    - Prevents short selling (must hold enough shares).
+    - Refunds user according to cost difference.
+    - Frees up invested credits accordingly.
     """
     side_upper = side.upper()
 
@@ -599,7 +599,25 @@ def sell_bet(
     if market.resolved:
         raise HTTPException(400, "Market already resolved")
 
-    # ✅ Calculate cost difference (refund) using LMSR reversal
+    # 🔍 Check user's current holdings for that side
+    user_shares = (
+        db.query(func.coalesce(func.sum(Bet.amount), 0.0))
+        .filter(
+            Bet.user_id == user_id,
+            Bet.market_id == market_id,
+            Bet.side == side_upper
+        )
+        .scalar()
+        or 0.0
+    )
+
+    if shares_to_sell > user_shares:
+        raise HTTPException(
+            status_code=400,
+            detail=f"❌ You cannot sell {shares_to_sell} {side_upper} shares — you only hold {user_shares:.2f}."
+        )
+
+    # ✅ Calculate refund (cost decrease in LMSR curve)
     current_cost = cost_for_shares(
         market.yes_shares, market.no_shares, shares_to_sell, side_upper, market.liquidity
     )
@@ -610,11 +628,10 @@ def sell_bet(
     else:
         market.no_shares -= shares_to_sell
 
-    # The refund = decrease in LMSR total cost function
     refund = current_cost
     user.balance += refund
 
-    # 🧹 Delete or reduce user's Bet records proportionally
+    # 🧹 Update or delete Bet records
     bets = (
         db.query(Bet)
         .filter(Bet.user_id == user_id, Bet.market_id == market_id, Bet.side == side_upper)
@@ -629,13 +646,12 @@ def sell_bet(
             remaining -= b.amount
             db.delete(b)
         else:
-            # partial reduction
             portion = remaining / b.amount
             b.amount -= remaining
             b.total_cost *= (1 - portion)
             remaining = 0
 
-    # Record transaction
+    # 🧾 Record transaction
     from backend.models import Transaction
     db.add(Transaction(
         user_id=user.id,
@@ -651,6 +667,7 @@ def sell_bet(
         "detail": f"✅ Sold {shares_to_sell:.2f} {side_upper} shares for ${refund:.2f}. Balance now ${user.balance:.2f}",
         "freed_credits": refund
     }
+
 
 
 @app.post("/resolve", response_model=MarketResponse)
