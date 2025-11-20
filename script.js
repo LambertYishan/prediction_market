@@ -209,22 +209,59 @@ async function loadMarketDetails() {
       : '';
 
     const statusLabel = status === "resolved"
-      ? `<p><strong>Status:</strong> ✅ Resolved (${market.outcome})</p>`
+      ? `Resolved${market.outcome ? ` (${market.outcome})` : ""}`
       : status === "expired"
-        ? `<p><strong>Status:</strong> ⚠️ Expired — Awaiting Resolution</p>`
-        : `<p><strong>Status:</strong> ⏳ Active</p>`;
+        ? "Expired — Awaiting Resolution"
+        : "Active";
+
+    const statusBadge = `<span class="status-badge ${status}">${statusLabel}</span>`;
+    const timeSummary = expiry
+      ? `<span class="muted">Expires: ${parseUtc(market.expires_at).toLocaleString('en-US', {
+        dateStyle: 'medium',
+        timeStyle: 'short'
+      })}</span>`
+      : `<span class="muted">No expiry set</span>`;
 
     container.innerHTML = `
-      <h2>${market.title}</h2>
-      <p>${market.description || ''}</p>
-      ${expiryLine}
-      ${statusLabel}
-      <p><strong>Price YES:</strong> ${market.price_yes.toFixed(2)} &nbsp;|&nbsp;
-         <strong>Price NO:</strong> ${market.price_no.toFixed(2)}</p>
-      <p><strong>YES Shares:</strong> ${market.yes_shares.toFixed(2)} &nbsp;|&nbsp;
-         <strong>NO Shares:</strong> ${market.no_shares.toFixed(2)}</p>
-      ${market.resolved ? `<p><strong>Outcome:</strong> ${market.outcome}</p>` : ''}
-      <p id="invested-display" style="font-weight:bold; margin-top:10px;">Invested: 0 / 100 credits</p>
+      <div class="market-hero card">
+        <div class="market-head">
+          <div class="status-line">
+            ${statusBadge}
+            ${timeSummary}
+          </div>
+          <h2>${market.title}</h2>
+          <p class="muted">${market.description || 'No description provided.'}</p>
+        </div>
+        <div class="stat-grid">
+          <div class="stat-card">
+            <span>YES Price</span>
+            <strong>${market.price_yes.toFixed(2)}</strong>
+          </div>
+          <div class="stat-card">
+            <span>NO Price</span>
+            <strong>${market.price_no.toFixed(2)}</strong>
+          </div>
+          <div class="stat-card">
+            <span>YES Shares</span>
+            <strong>${market.yes_shares.toFixed(2)}</strong>
+          </div>
+          <div class="stat-card">
+            <span>NO Shares</span>
+            <strong>${market.no_shares.toFixed(2)}</strong>
+          </div>
+          ${market.resolved ? `
+          <div class="stat-card wide">
+            <span>Outcome</span>
+            <strong>${market.outcome}</strong>
+          </div>` : ''}
+          ${expiryLine ? `
+          <div class="stat-card wide">
+            <span>Expires (local)</span>
+            <strong>${parseUtc(market.expires_at).toLocaleString()}</strong>
+          </div>` : ''}
+          <div class="stat-card wide" id="invested-display">Invested: 0 / 100 credits</div>
+        </div>
+      </div>
     `;
 
     // 🟡 Disable betting if inactive

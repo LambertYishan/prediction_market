@@ -42,12 +42,6 @@
       <div id="timezones" class="tz-display"></div>
     </section>
 
-    <!-- Line Chart Section -->
-    <section id="chart-section" class="hidden">
-      <h3>Price History</h3>
-      <canvas id="priceChart" width="400" height="200"></canvas>
-    </section>
-
     <!-- Time Progress Chart -->
     <section id="progress-chart-section" class="hidden">
       <h3>Market Progress Over Time</h3>
@@ -151,44 +145,12 @@
         tzEl.innerHTML = timeStrings;
       }
 
-      // Chart setup
+      // Chart setup (progress only)
       if (market) {
-        const chartSection = document.getElementById('chart-section');
-        chartSection.classList.remove('hidden');
-        const ctx = document.getElementById('priceChart').getContext('2d');
-
         try {
           const resp = await fetch(`${apiBase}/markets/${market.id}/history`);
           const history = await resp.json();
 
-          if (!Array.isArray(history) || history.length === 0) {
-            console.warn("No price history yet for this market.");
-            ctx.font = "16px sans-serif";
-            ctx.fillText("No price history yet — place a bet to start tracking!", 10, 50);
-            return;
-          }
-
-          const labels = history.map(p => parseUtc(p.timestamp).toLocaleString());
-          const yesPrices = history.map(p => p.price_yes);
-          const noPrices = history.map(p => p.price_no);
-
-          new Chart(ctx, {
-            type: 'line',
-            data: {
-              labels,
-              datasets: [
-                { label: 'YES Price', data: yesPrices, borderColor: 'green', tension: 0.3, fill: false },
-                { label: 'NO Price', data: noPrices, borderColor: 'red', tension: 0.3, fill: false }
-              ]
-            },
-            options: {
-              responsive: true,
-              scales: {
-                y: { min: 0, max: 1, title: { display: true, text: 'Price (0–1)' } },
-                x: { title: { display: true, text: 'Timestamp' }, ticks: { maxRotation: 45, minRotation: 45 } }
-              }
-            }
-          });
           // ==================== Time Progress Chart ====================
           const progressSection = document.getElementById('progress-chart-section');
           progressSection.classList.remove('hidden');
