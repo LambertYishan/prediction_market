@@ -3,13 +3,13 @@
 
 <head>
   <meta charset="UTF-8">
-  <title>Prediction Market</title>
+  <title>OpenForecast</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 
 <body>
   <header>
-    <h1>Prediction Market</h1>
+    <h1 class="brand-title">OpenForecast</h1>
     <nav>
       <a href="index.html">Home</a>
       <a href="admin.html">Admin</a>
@@ -155,8 +155,8 @@
         card.innerHTML = `
           <div class="market-card__header">
             <h3>${market.title}</h3>
-            <span class="category-pill">${categoryLabel}</span>
           </div>
+          <p class="muted">Category: <span class="category-pill inline-pill">${categoryLabel}</span></p>
           <p><strong>Status:</strong> ${statusText}${resolvedTag}</p>
           <p><strong>YES:</strong> ${(yesPrice * 100).toFixed(1)}% |
              <strong>NO:</strong> ${(noPrice * 100).toFixed(1)}%
