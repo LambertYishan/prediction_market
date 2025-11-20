@@ -80,18 +80,30 @@
 
     <!-- Bet Section -->
     <section id="bet-container" class="hidden">
-      <h2>Place a Bet</h2>
-      <div id="bet-message"></div>
-      <form id="bet-form">
-        <label>
-          Amount (shares):
-          <input type="number" id="bet-amount" name="amount" step="0.01" min="0.01" required>
-        </label>
-        <div>
-          <label><input type="radio" name="side" value="YES" checked> YES</label>
-          <label><input type="radio" name="side" value="NO"> NO</label>
+      <div class="section-header">
+        <h2>Place a Bet</h2>
+        <span class="badge">Buy / Sell</span>
+      </div>
+      <div id="bet-message" class="muted"></div>
+      <form id="bet-form" class="order-form">
+        <div class="order-grid">
+          <label class="form-field">
+            <span>Amount (shares)</span>
+            <input type="number" id="bet-amount" name="amount" step="0.01" min="0.01" required>
+          </label>
+          <label class="form-field">
+            <span>Side</span>
+            <div class="pill-group">
+              <label class="pill"><input type="radio" name="side" value="YES" checked> YES</label>
+              <label class="pill"><input type="radio" name="side" value="NO"> NO</label>
+            </div>
+          </label>
         </div>
-        <button type="submit">Place Bet</button>
+        <div class="button-row">
+          <button type="submit">Place Bet</button>
+          <button type="button" class="btn-secondary" onclick="sellPosition('YES')">Sell YES</button>
+          <button type="button" class="btn-secondary" onclick="sellPosition('NO')">Sell NO</button>
+        </div>
       </form>
     </section>
   </main>
@@ -269,8 +281,12 @@
                   x: {
                     type: 'time',
                     time: {
-                      unit: 'hour',
-                      tooltipFormat: 'MMM d, yyyy HH:mm:ss'
+                      displayFormats: {
+                        hour: 'MMM d, HH:mm',
+                        day: 'MMM d'
+                      },
+                      tooltipFormat: 'MMM d, yyyy HH:mm:ss',
+                      minUnit: 'minute'
                     },
                     title: {
                       display: true,
@@ -312,6 +328,18 @@
             if (zoomInBtn) zoomInBtn.onclick = () => progressChart.zoom(1.2);
             if (zoomOutBtn) zoomOutBtn.onclick = () => progressChart.zoom(0.8);
             if (zoomResetBtn) zoomResetBtn.onclick = () => progressChart.resetZoom();
+            // Adaptive unit: toggle day scale when zoomed out past 48h
+            progressChart.options.scales.x.ticks.callback = function(value) {
+              const rangeMs = progressChart.scales.x.max - progressChart.scales.x.min;
+              const twoDaysMs = 48 * 60 * 60 * 1000;
+              if (rangeMs > twoDaysMs) {
+                progressChart.options.scales.x.time.unit = 'day';
+              } else {
+                progressChart.options.scales.x.time.unit = 'hour';
+              }
+              return this.getLabelForValue(value);
+            };
+            progressChart.update();
           }
         } catch (err) {
           console.error("Failed to load price history:", err);
