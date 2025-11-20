@@ -27,6 +27,14 @@
           <h2>Profile Info</h2>
           <span class="badge">User</span>
         </div>
+        <div class="avatar-block">
+          <img id="avatar-preview" class="avatar" alt="Profile avatar">
+          <div class="avatar-controls">
+            <label for="avatar-select">Choose a cartoon avatar</label>
+            <select id="avatar-select"></select>
+            <button id="avatar-random" class="btn-secondary small-btn" type="button">Randomize</button>
+          </div>
+        </div>
         <p id="user-info"></p>
         <div class="button-row">
           <button id="change-pass-btn">Change Password</button>
@@ -128,6 +136,48 @@
       document.getElementById('user-info').textContent = `Username: ${user.username}`;
       await renderPredictionAccuracy(userId);
 
+      // Avatar presets (cute, local data URIs)
+      const AVATAR_PRESETS = [
+        {
+          name: "Sunshine Kitty",
+          data: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180' viewBox='0 0 180 180'><rect width='180' height='180' rx='20' fill='%23fff7e6'/><circle cx='90' cy='85' r='55' fill='%23ffd166'/><circle cx='68' cy='80' r='8' fill='%2323242a'/><circle cx='112' cy='80' r='8' fill='%2323242a'/><path d='M70 115 Q90 135 110 115' stroke='%2323242a' stroke-width='6' fill='none' stroke-linecap='round'/><path d='M55 70 L50 40 L70 65' fill='%23ffa94d'/><path d='M125 70 L130 40 L110 65' fill='%23ffa94d'/></svg>"
+        },
+        {
+          name: "Bubble Bear",
+          data: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180' viewBox='0 0 180 180'><rect width='180' height='180' rx='20' fill='%23e5f0ff'/><circle cx='90' cy='95' r='60' fill='%239ec5ff'/><circle cx='55' cy='60' r='24' fill='%239ec5ff'/><circle cx='125' cy='60' r='24' fill='%239ec5ff'/><circle cx='68' cy='92' r='10' fill='%2323242a'/><circle cx='112' cy='92' r='10' fill='%2323242a'/><path d='M70 125 Q90 140 110 125' stroke='%2323242a' stroke-width='6' fill='none' stroke-linecap='round'/><circle cx='90' cy='105' r='6' fill='%23ffd166'/></svg>"
+        },
+        {
+          name: "Mint Panda",
+          data: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180' viewBox='0 0 180 180'><rect width='180' height='180' rx='20' fill='%23e6fff5'/><circle cx='90' cy='95' r='60' fill='%23fff'/><circle cx='60' cy='60' r='22' fill='%2323242a'/><circle cx='120' cy='60' r='22' fill='%2323242a'/><circle cx='68' cy='92' r='10' fill='%2323242a'/><circle cx='112' cy='92' r='10' fill='%2323242a'/><ellipse cx='90' cy='105' rx='14' ry='10' fill='%2323242a'/><path d='M70 130 Q90 145 110 130' stroke='%2323242a' stroke-width='6' fill='none' stroke-linecap='round'/></svg>"
+        },
+        {
+          name: "Cherry Bunny",
+          data: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180' viewBox='0 0 180 180'><rect width='180' height='180' rx='20' fill='%23fff0f6'/><ellipse cx='70' cy='55' rx='18' ry='32' fill='%23ffb3c1'/><ellipse cx='110' cy='55' rx='18' ry='32' fill='%23ffb3c1'/><circle cx='90' cy='105' r='55' fill='%23ffe0e9'/><circle cx='70' cy='105' r='8' fill='%2323242a'/><circle cx='110' cy='105' r='8' fill='%2323242a'/><path d='M75 135 Q90 148 105 135' stroke='%2323242a' stroke-width='6' fill='none' stroke-linecap='round'/><circle cx='90' cy='118' r='6' fill='%23ff6b81'/></svg>"
+        }
+      ];
+
+      const avatarSelect = document.getElementById('avatar-select');
+      const avatarPreview = document.getElementById('avatar-preview');
+      const avatarRandom = document.getElementById('avatar-random');
+
+      function setAvatar(choice) {
+        const preset = AVATAR_PRESETS.find(p => p.name === choice) || AVATAR_PRESETS[0];
+        avatarSelect.value = preset.name;
+        avatarPreview.src = preset.data;
+        localStorage.setItem('avatarChoice', preset.name);
+      }
+
+      avatarSelect.innerHTML = AVATAR_PRESETS.map(p => `<option value="${p.name}">${p.name}</option>`).join('');
+      const savedAvatar = localStorage.getItem('avatarChoice');
+      const initial = savedAvatar || AVATAR_PRESETS[Math.floor(Math.random() * AVATAR_PRESETS.length)].name;
+      setAvatar(initial);
+
+      avatarSelect.addEventListener('change', (e) => setAvatar(e.target.value));
+      avatarRandom.addEventListener('click', () => {
+        const random = AVATAR_PRESETS[Math.floor(Math.random() * AVATAR_PRESETS.length)].name;
+        setAvatar(random);
+      });
+
       // Pagination state
       const TX_PAGE_SIZE = 20;
       const POS_PAGE_SIZE = 20;
@@ -175,21 +225,26 @@
 
       // --- Membership Stats ---
       try {
-        // Fetch membership stats (if your backend implements /user/{id}/stats)
         const statsRes = await fetch(`${apiBase}/user/${userId}/stats`);
         if (statsRes.ok) {
           const stats = await statsRes.json();
-          const created = new Date(stats.created_at || user.created_at || Date.now());
-          const lastLogin = new Date(stats.last_login || user.last_login || Date.now());
           const now = new Date();
+          const createdRaw = stats.created_at || user.created_at;
+          const lastLoginRaw = stats.last_login || user.last_login;
+          const created = createdRaw ? parseUtc(createdRaw) : now;
+          const lastLogin = lastLoginRaw ? parseUtc(lastLoginRaw) : now;
 
-          const daysMember = Math.floor((now - created) / (1000 * 60 * 60 * 24));
-          const daysSinceLogin = Math.floor((now - lastLogin) / (1000 * 60 * 60 * 24));
+          const daysMember = stats.days_member !== undefined
+            ? stats.days_member
+            : Math.max(0, Math.floor((now - created) / (1000 * 60 * 60 * 24)));
+          const daysSinceLogin = stats.days_since_login !== undefined
+            ? stats.days_since_login
+            : Math.max(0, Math.floor((now - lastLogin) / (1000 * 60 * 60 * 24)));
 
           document.getElementById("days-member").textContent =
-            `👤 Member for ${daysMember} day${daysMember !== 1 ? "s" : ""}`;
+            `Member for ${daysMember} day${daysMember !== 1 ? "s" : ""}`;
           document.getElementById("days-since-login").textContent =
-            `⏱️ Last login ${daysSinceLogin} day${daysSinceLogin !== 1 ? "s" : ""} ago`;
+            `Last login ${daysSinceLogin} day${daysSinceLogin !== 1 ? "s" : ""} ago`;
         } else {
           document.getElementById("days-member").textContent = "Member stats unavailable.";
         }

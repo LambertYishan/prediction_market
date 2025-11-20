@@ -108,6 +108,35 @@ main {
   margin-top: 0.25rem;
 }
 
+.avatar-block {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  margin: 0.4rem 0 0.8rem;
+}
+
+.avatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 16px;
+  border: 2px solid #e2e8f0;
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.12);
+  background: #fff;
+  object-fit: cover;
+}
+
+.avatar-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.small-btn {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.9rem;
+  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.15);
+}
+
 .filter-bar {
   display: flex;
   justify-content: space-between;
