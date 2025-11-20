@@ -21,14 +21,41 @@
   </header>
 
   <main>
-    <section>
-      <h2 class="section-title">🟢 Active Markets</h2>
-      <div id="active-markets" class="market-list"></div>
+    <section class="filter-bar">
+      <div>
+        <h2 class="section-title">Browse by category</h2>
+        <label for="category-filter">
+          Category
+          <select id="category-filter">
+            <option value="all">All categories</option>
+            <option value="Sports">Sports</option>
+            <option value="Politics">Politics</option>
+            <option value="Finance &amp; Economy">Finance &amp; Economy</option>
+            <option value="Everything else">Everything else</option>
+          </select>
+        </label>
+      </div>
+      <p class="pagination-hint">Showing 10 markets per page. Use the pager below to navigate.</p>
     </section>
 
     <section>
-      <h2 class="section-title">⚫ Inactive Markets (Last 30 Days)</h2>
+      <h2 class="section-title">Active Markets</h2>
+      <div id="active-markets" class="market-list"></div>
+      <div class="pagination-controls">
+        <button id="active-prev" data-target="active" data-dir="prev">&larr; Prev</button>
+        <span id="active-page-info">Page 1 of 1</span>
+        <button id="active-next" data-target="active" data-dir="next">Next &rarr;</button>
+      </div>
+    </section>
+
+    <section>
+      <h2 class="section-title">Inactive Markets (Last 30 Days)</h2>
       <div id="inactive-markets" class="market-list"></div>
+      <div class="pagination-controls">
+        <button id="inactive-prev" data-target="inactive" data-dir="prev">&larr; Prev</button>
+        <span id="inactive-page-info">Page 1 of 1</span>
+        <button id="inactive-next" data-target="inactive" data-dir="next">Next &rarr;</button>
+      </div>
     </section>
   </main>
 
@@ -36,100 +63,210 @@
   <script>
     document.addEventListener("DOMContentLoaded", async () => {
       await updateUserGreeting();
+      const PAGE_SIZE = 10;
+      const CATEGORY_ORDER = [
+        "Sports",
+        "Politics",
+        "Finance & Economy",
+        "Everything else"
+      ];
+
+      const state = {
+        category: "all",
+        page: { active: 1, inactive: 1 },
+        markets: []
+      };
+
+      document.getElementById("active-markets").textContent = "Loading markets...";
+      document.getElementById("inactive-markets").textContent = "";
+
+      const categorySelect = document.getElementById("category-filter");
+      if (categorySelect) {
+        categorySelect.addEventListener("change", () => {
+          state.category = categorySelect.value;
+          state.page.active = 1;
+          state.page.inactive = 1;
+          renderLists();
+        });
+      }
+
+      document.querySelectorAll("[data-target][data-dir]").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const target = btn.getAttribute("data-target");
+          const dir = btn.getAttribute("data-dir");
+          const totalPages = getTotalPages(target);
+          if (dir === "next" && state.page[target] < totalPages) state.page[target]++;
+          if (dir === "prev" && state.page[target] > 1) state.page[target]--;
+          renderLists();
+        });
+      });
+
+      function normalizeCategory(market) {
+        const raw = (market.category || market.Category || "").toString().trim();
+        if (raw) {
+          const matched = CATEGORY_ORDER.find(c => c.toLowerCase() === raw.toLowerCase());
+          if (matched) return matched;
+        }
+
+        const text = `${market.title ?? ""} ${market.description ?? ""}`.toLowerCase();
+        if (/(nba|nfl|mlb|nhl|soccer|football|basketball|baseball|hockey|golf|tennis|match|game|tournament|league|world cup|olympic|fifa|ufc|boxing|cricket)/.test(text)) {
+          return "Sports";
+        }
+        if (/(election|vote|president|senate|congress|parliament|policy|politic|minister|government|measure|bill|referendum|campaign)/.test(text)) {
+          return "Politics";
+        }
+        if (/(stock|market|inflation|gdp|economy|economic|finance|interest rate|fed|treasury|bond|nasdaq|dow|crypto|bitcoin|bank|currency|unemployment|recession)/.test(text)) {
+          return "Finance & Economy";
+        }
+        return "Everything else";
+      }
+
+      function decorateMarkets(markets) {
+        return markets
+          .map(m => ({ ...m, normalizedCategory: normalizeCategory(m) }))
+          .sort((a, b) => {
+            const aExp = a.expires_at ? new Date(a.expires_at) : new Date(9999, 0, 1);
+            const bExp = b.expires_at ? new Date(b.expires_at) : new Date(9999, 0, 1);
+            return aExp - bExp;
+          });
+      }
+
+      function buildCard(market, statusText, timeText) {
+        const expiry = market.expires_at ? new Date(market.expires_at) : null;
+        const categoryLabel = market.normalizedCategory || "Everything else";
+        const resolvedTag = market.outcome ? ` (${market.outcome})` : "";
+        const deletionNote = market.deletion_note
+          ? `<p class="admin-note"><em>Admin note:</em> ${market.deletion_note}</p>`
+          : "";
+        const yesPrice = Number(market.price_yes ?? market.priceYes ?? 0);
+        const noPrice = Number(market.price_no ?? market.priceNo ?? 0);
+        const expiryLine = expiry
+          ? `<p><strong>Expires (NY time):</strong> ${expiry.toLocaleString("en-US", {
+            timeZone: "America/New_York",
+            dateStyle: "medium",
+            timeStyle: "short"
+          })}</p>`
+          : "";
+
+        const card = document.createElement("div");
+        card.classList.add("market-card");
+        card.innerHTML = `
+          <div class="market-card__header">
+            <h3>${market.title}</h3>
+            <span class="category-pill">${categoryLabel}</span>
+          </div>
+          <p><strong>Status:</strong> ${statusText}${resolvedTag}</p>
+          <p><strong>YES:</strong> ${(yesPrice * 100).toFixed(1)}% |
+             <strong>NO:</strong> ${(noPrice * 100).toFixed(1)}%
+          </p>
+          ${deletionNote}
+          ${expiryLine}
+          ${timeText ? `<p><em>${timeText}</em></p>` : ""}
+          <a href="market.html?id=${market.id}" class="btn">View Market</a>
+        `;
+        return card;
+      }
+
+      function getTotalPages(section) {
+        const filtered = getFiltered(section);
+        return Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+      }
+
+      function renderSection(section, containerId, pageInfoId) {
+        const container = document.getElementById(containerId);
+        const filtered = getFiltered(section);
+        const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+        state.page[section] = Math.min(state.page[section], totalPages);
+
+        const pageInfo = document.getElementById(pageInfoId);
+        const prevBtn = document.getElementById(`${section}-prev`);
+        const nextBtn = document.getElementById(`${section}-next`);
+
+        if (filtered.length === 0) {
+          container.innerHTML = section === "active"
+            ? "<p>No active markets at the moment.</p>"
+            : "<p>No inactive markets in the last 30 days.</p>";
+          if (pageInfo) pageInfo.textContent = "Page 1 of 1 (0 markets)";
+          if (prevBtn) prevBtn.disabled = true;
+          if (nextBtn) nextBtn.disabled = true;
+          return;
+        }
+
+        const start = (state.page[section] - 1) * PAGE_SIZE;
+        const slice = filtered.slice(start, start + PAGE_SIZE);
+        container.innerHTML = "";
+
+        slice.forEach(m => {
+          const now = new Date();
+          const expiry = m.expires_at ? new Date(m.expires_at) : null;
+          let timeText = "";
+          if (expiry) {
+            const diffMs = expiry - now;
+            const diffHours = Math.abs(diffMs) / (1000 * 60 * 60);
+            timeText = diffMs >= 0
+              ? (diffHours < 1 ? `${Math.round(diffHours * 60)} min left` : `${diffHours.toFixed(1)} h left`)
+              : `${Math.round(diffHours)} h ago`;
+          }
+          const statusText = m._status;
+          container.appendChild(buildCard(m, statusText, timeText));
+        });
+
+        if (pageInfo) {
+          pageInfo.textContent = `Page ${state.page[section]} of ${totalPages} (${filtered.length} markets)`;
+        }
+        if (prevBtn) prevBtn.disabled = state.page[section] <= 1;
+        if (nextBtn) nextBtn.disabled = state.page[section] >= totalPages;
+      }
+
+      function getFiltered(section) {
+        const now = new Date();
+        const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        const matchesCategory = (m) => state.category === "all" || m.normalizedCategory === state.category;
+
+        const active = [];
+        const inactive = [];
+
+        state.markets.forEach(m => {
+          const expiry = m.expires_at ? new Date(m.expires_at) : null;
+          const resolved = m.resolved === true;
+          const deleted = m.deleted === true || m.status === "deleted";
+          const isActive = expiry ? (expiry > now && !resolved && !deleted) : (!resolved && !deleted);
+
+          const recentlyInactive = !isActive && (
+            resolved || deleted || (expiry && expiry <= now && expiry >= thirtyDaysAgo)
+          );
+
+          if (!isActive && !recentlyInactive) return;
+
+          const annotated = { ...m };
+          if (isActive) {
+            annotated._status = "Active";
+            active.push(annotated);
+          } else {
+            annotated._status = resolved ? "Resolved" : deleted ? "Deleted" : "Expired";
+            inactive.push(annotated);
+          }
+        });
+
+        const pool = section === "active" ? active : inactive;
+        return pool.filter(matchesCategory);
+      }
+
+      function renderLists() {
+        renderSection("active", "active-markets", "active-page-info");
+        renderSection("inactive", "inactive-markets", "inactive-page-info");
+      }
 
       try {
         const res = await fetch(`${apiBase}/markets`);
         if (!res.ok) throw new Error("Failed to load markets");
         const markets = await res.json();
-
-        // ✅ Sort by soonest expiry (ascending)
-        markets.sort((a, b) => {
-          const aExp = a.expires_at ? new Date(a.expires_at) : new Date(9999, 0, 1);
-          const bExp = b.expires_at ? new Date(b.expires_at) : new Date(9999, 0, 1);
-          return aExp - bExp;
-        });
-
-
-        const activeContainer = document.getElementById("active-markets");
-        const inactiveContainer = document.getElementById("inactive-markets");
-
-        activeContainer.innerHTML = "";
-        inactiveContainer.innerHTML = "";
-
-        if (!markets || markets.length === 0) {
-          activeContainer.innerHTML = "<p>No markets available yet.</p>";
-          return;
-        }
-
-        const now = new Date();
-        const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-
-        for (const m of markets) {
-          const expiry = m.expires_at ? new Date(m.expires_at) : null;
-          const resolved = m.resolved === true;
-          const deleted = m.status === "deleted"; // optional if you track this
-          const isActive = expiry && expiry > now && !resolved && !deleted;
-
-          // inactive if resolved, deleted, or expired within last 30 days
-          const isRecentlyInactive =
-            (!isActive) && (
-              resolved ||
-              deleted ||
-              (expiry && expiry <= now && expiry >= thirtyDaysAgo)
-            );
-
-          if (!isActive && !isRecentlyInactive) continue; // skip older markets
-
-          // calculate time remaining / since expiry
-          let timeText = "";
-          if (expiry) {
-            const diffMs = expiry - now;
-            const diffHours = Math.abs(diffMs) / (1000 * 60 * 60);
-            if (isActive) {
-              if (diffHours < 1) timeText = `${Math.round(diffHours * 60)} min left`;
-              else timeText = `${diffHours.toFixed(1)} h left`;
-            } else {
-              timeText = `${Math.round(diffHours)} h ago`;
-            }
-          }
-
-          const card = document.createElement("div");
-          card.classList.add("market-card");
-          card.innerHTML = `
-        <h3>${m.title}</h3>
-        <p><strong>Status:</strong>
-          ${isActive ? "🟢 Active"
-              : resolved ? "✅ Resolved"
-                : deleted ? "❌ Deleted"
-                  : "⚫ Expired"}</p>
-        <p><strong>YES:</strong> ${(m.price_yes * 100).toFixed(1)}% | 
-           <strong>NO:</strong> ${(m.price_no * 100).toFixed(1)}%</p>
-        
-        ${deleted && m.deletion_note ?
-              `<p class="admin-note"><em>📝 Admin note:</em> ${m.deletion_note}</p>`
-              : ""}
-            
-        ${expiry ? `<p><strong>Expires (NY time):</strong> ${expiry.toLocaleString('en-US', {
-                timeZone: 'America/New_York',
-                dateStyle: 'medium',
-                timeStyle: 'short'
-              })}</p>` : ""}
-        ${timeText ? `<p><em>${timeText}</em></p>` : ""}
-        <a href="market.html?id=${m.id}" class="btn">View Market</a>
-      `;
-
-          if (isActive) activeContainer.appendChild(card);
-          else inactiveContainer.appendChild(card);
-        }
-
-        // fallback if empty
-        if (activeContainer.children.length === 0)
-          activeContainer.innerHTML = "<p>No active markets at the moment.</p>";
-        if (inactiveContainer.children.length === 0)
-          inactiveContainer.innerHTML = "<p>No inactive markets in the last 30 days.</p>";
+        state.markets = decorateMarkets(markets);
+        renderLists();
       } catch (err) {
         console.error(err);
         document.getElementById("active-markets").innerHTML = "<p>Error loading markets.</p>";
+        document.getElementById("inactive-markets").innerHTML = "";
       }
     });
   </script>
