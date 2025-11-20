@@ -20,64 +20,94 @@
   </header>
 
   <main>
-    <!-- Profile -->
-    <section id="profile-section">
-      <h2>Profile Info</h2>
-      <p id="user-info"></p>
-      <button id="change-pass-btn">Change Password</button>
-      <button id="claim-bonus-btn">Claim Daily Return</button>
-      <p id="bonus-message"></p>
-    </section>
+    <section class="card-row">
+      <!-- Profile -->
+      <section id="profile-section" class="card">
+        <div class="section-header">
+          <h2>Profile Info</h2>
+          <span class="badge">User</span>
+        </div>
+        <p id="user-info"></p>
+        <div class="button-row">
+          <button id="change-pass-btn">Change Password</button>
+          <button id="claim-bonus-btn" class="btn-secondary">Claim Daily Return</button>
+        </div>
+        <p id="bonus-message" class="muted"></p>
+      </section>
 
-    <section id="membership-stats">
-      <h2>Membership Stats</h2>
-      <p id="days-member"></p>
-      <p id="days-since-login"></p>
-    </section>
+      <section id="membership-stats" class="card">
+        <div class="section-header">
+          <h2>Membership Stats</h2>
+        </div>
+        <p id="days-member"></p>
+        <p id="days-since-login"></p>
+      </section>
 
-    <section id="performance-stats">
-      <h2>Performance</h2>
-      <p id="prediction-accuracy">Loading accuracy...</p>
+      <section id="performance-stats" class="card">
+        <div class="section-header">
+          <h2>Performance</h2>
+        </div>
+        <p id="prediction-accuracy">Loading accuracy...</p>
+      </section>
     </section>
 
 
     <!-- Transaction History -->
-    <section id="transaction-history">
-      <h2>Transaction History</h2>
-      <table id="transaction-table" class="styled-table">
-        <thead>
-          <tr>
-            <th>Type</th>
-            <th>Market</th>
-            <th>Side / Outcome</th>
-            <th>Shares</th>
-            <th>Total ($)</th>
-            <th>Avg Price</th>
-            <th>Time</th>
-          </tr>
-        </thead>
-        <tbody id="transaction-body"></tbody>
-      </table>
+    <section id="transaction-history" class="card table-card">
+      <div class="section-header">
+        <h2>Transaction History</h2>
+        <span class="badge">20 per page</span>
+      </div>
+      <div class="table-wrapper">
+        <table id="transaction-table" class="styled-table">
+          <thead>
+            <tr>
+              <th>Type</th>
+              <th>Market</th>
+              <th>Side / Outcome</th>
+              <th>Shares</th>
+              <th>Total ($)</th>
+              <th>Avg Price</th>
+              <th>Time</th>
+            </tr>
+          </thead>
+          <tbody id="transaction-body"></tbody>
+        </table>
+      </div>
+      <div class="pagination-controls">
+        <button id="tx-prev" class="btn-secondary">Prev</button>
+        <span id="tx-page-info">Page 1 of 1</span>
+        <button id="tx-next" class="btn-secondary">Next</button>
+      </div>
     </section>
 
     <!-- Position / History Table -->
-    <section id="history-section">
-      <h2>Position History</h2>
-      <table id="positionHistory-table" class="styled-table">
-        <thead>
-          <tr>
-            <th>Market</th>
-            <th>Side</th>
-            <th>Amount</th>
-            <th>Price</th>
-            <th>Spent ($)</th>
-            <th>Outcome</th>
-            <th>PnL ($)</th>
-            <th>Time</th>
-          </tr>
-        </thead>
-        <tbody id="positionHistory-body"></tbody>
-      </table>
+    <section id="history-section" class="card table-card">
+      <div class="section-header">
+        <h2>Position History</h2>
+      </div>
+      <div class="table-wrapper">
+        <table id="positionHistory-table" class="styled-table">
+          <thead>
+            <tr>
+              <th>Market</th>
+              <th>Side</th>
+              <th>Amount</th>
+              <th>Price</th>
+              <th>Spent ($)</th>
+              <th>Outcome</th>
+              <th>PnL ($)</th>
+              <th>Time</th>
+            </tr>
+          </thead>
+          <tbody id="positionHistory-body"></tbody>
+        </table>
+      </div>
+      <div class="pagination-controls">
+        <button id="pos-prev" class="btn-secondary">Prev</button>
+        <span id="pos-page-info">Page 1 of 1</span>
+        <button id="pos-next" class="btn-secondary">Next</button>
+      </div>
       <p id="lifetime-pnl" style="margin-top:10px; font-weight:bold;"></p>
     </section>
   </main>
@@ -98,27 +128,50 @@
       document.getElementById('user-info').textContent = `Username: ${user.username}`;
       await renderPredictionAccuracy(userId);
 
-      // Load user bets
+      // Pagination state
+      const TX_PAGE_SIZE = 20;
+      const POS_PAGE_SIZE = 20;
+      let txState = { items: [], page: 1 };
+      let posState = { items: [], page: 1 };
+
+      const txBody = document.getElementById("transaction-body");
+      const posBody = document.getElementById('positionHistory-body');
+
+      // Load user bets with pagination
       const betsRes = await fetch(`${apiBase}/user/${userId}/bets`);
       const data = await betsRes.json();
-      const tbody = document.getElementById('positionHistory-body');
+      const bets = Array.isArray(data.bets) ? data.bets : [];
 
-      if (!data.bets || data.bets.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8">No positions yet.</td></tr>';
-      } else {
-        tbody.innerHTML = data.bets.map(b => `
-          <tr>
-            <td>${b.market_title}</td>
-            <td>${b.side}</td>
-            <td>${b.amount.toFixed(2)}</td>
-            <td>${b.price.toFixed(2)}</td>
-            <td>${b.total_cost.toFixed(2)}</td>
-            <td>${b.outcome || '-'}</td>
-            <td>${b.pnl.toFixed(2)}</td>
-            <td>${new Date(b.timestamp).toLocaleString()}</td>
-          </tr>
-        `).join('');
+      function renderPositions(page = 1) {
+        const totalPages = Math.max(1, Math.ceil(bets.length / POS_PAGE_SIZE));
+        posState.page = Math.min(Math.max(page, 1), totalPages);
+        if (bets.length === 0) {
+          posBody.innerHTML = '<tr><td colspan="8">No positions yet.</td></tr>';
+        } else {
+          const start = (posState.page - 1) * POS_PAGE_SIZE;
+          const slice = bets.slice(start, start + POS_PAGE_SIZE);
+          posBody.innerHTML = slice.map(b => `
+            <tr>
+              <td>${b.market_title}</td>
+              <td>${b.side}</td>
+              <td>${b.amount.toFixed(2)}</td>
+              <td>${b.price.toFixed(2)}</td>
+              <td>${b.total_cost.toFixed(2)}</td>
+              <td>${b.outcome || '-'}</td>
+              <td>${b.pnl.toFixed(2)}</td>
+              <td>${new Date(b.timestamp).toLocaleString()}</td>
+            </tr>
+          `).join('');
+        }
+        document.getElementById('pos-page-info').textContent =
+          `Page ${posState.page} of ${Math.max(1, Math.ceil(bets.length / POS_PAGE_SIZE))}`;
+        document.getElementById('pos-prev').disabled = posState.page <= 1;
+        document.getElementById('pos-next').disabled = posState.page >= Math.max(1, Math.ceil(bets.length / POS_PAGE_SIZE));
       }
+
+      document.getElementById('pos-prev').addEventListener('click', () => renderPositions(posState.page - 1));
+      document.getElementById('pos-next').addEventListener('click', () => renderPositions(posState.page + 1));
+      renderPositions(1);
 
       // --- Membership Stats ---
       try {
@@ -148,28 +201,44 @@
       try {
         const txRes = await fetch(`${apiBase}/user/${userId}/transactions`);
         const txData = await txRes.json();
-        const txBody = document.getElementById("transaction-body");
+        txState.items = Array.isArray(txData.transactions) ? txData.transactions : [];
 
-        if (!txData.transactions || txData.transactions.length === 0) {
-          txBody.innerHTML = "<tr><td colspan='7'>No transactions yet.</td></tr>";
-        } else {
-          txBody.innerHTML = txData.transactions.map(t => {
-            const side = t.side_or_outcome || "-";
-            const shares = t.shares ? t.shares.toFixed(2) : "-";
-            const total = t.total || 0;
-            const avg = t.avg_price ? t.avg_price.toFixed(3) : "-";
-            return `
-        <tr>
-          <td>${t.type.replace(/_/g, " ")}</td>
-          <td>${t.market_title || "-"}</td>
-          <td>${side}</td>
-          <td>${shares}</td>
-          <td>${total.toFixed(2)}</td>
-          <td>${avg}</td>
-          <td>${new Date(t.timestamp).toLocaleString()}</td>
-        </tr>`;
-          }).join("");
+        function renderTransactions(page = 1) {
+          const totalPages = Math.max(1, Math.ceil(txState.items.length / TX_PAGE_SIZE));
+          txState.page = Math.min(Math.max(page, 1), totalPages);
+
+          if (txState.items.length === 0) {
+            txBody.innerHTML = "<tr><td colspan='7'>No transactions yet.</td></tr>";
+          } else {
+            const start = (txState.page - 1) * TX_PAGE_SIZE;
+            const slice = txState.items.slice(start, start + TX_PAGE_SIZE);
+            txBody.innerHTML = slice.map(t => {
+              const side = t.side_or_outcome || "-";
+              const shares = t.shares ? t.shares.toFixed(2) : "-";
+              const total = t.total || 0;
+              const avg = t.avg_price ? t.avg_price.toFixed(3) : "-";
+              return `
+          <tr>
+            <td>${t.type.replace(/_/g, " ")}</td>
+            <td>${t.market_title || "-"}</td>
+            <td>${side}</td>
+            <td>${shares}</td>
+            <td>${total.toFixed(2)}</td>
+            <td>${avg}</td>
+            <td>${new Date(t.timestamp).toLocaleString()}</td>
+          </tr>`;
+            }).join("");
+          }
+
+          document.getElementById('tx-page-info').textContent =
+            `Page ${txState.page} of ${Math.max(1, Math.ceil(txState.items.length / TX_PAGE_SIZE))}`;
+          document.getElementById('tx-prev').disabled = txState.page <= 1;
+          document.getElementById('tx-next').disabled = txState.page >= Math.max(1, Math.ceil(txState.items.length / TX_PAGE_SIZE));
         }
+
+        document.getElementById('tx-prev').addEventListener('click', () => renderTransactions(txState.page - 1));
+        document.getElementById('tx-next').addEventListener('click', () => renderTransactions(txState.page + 1));
+        renderTransactions(1);
       } catch (err) {
         console.error("Error loading transactions:", err);
       }
