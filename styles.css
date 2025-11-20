@@ -274,10 +274,9 @@ main {
 }
 
 .market-list {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 1.2rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1rem;
   align-items: stretch;
 }
 
@@ -286,16 +285,19 @@ main {
   background-color: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 14px;
-  padding: 1.1rem;
+  padding: 1rem;
   margin-bottom: 12px;
-  flex: 1 1 420px;
   box-sizing: border-box;
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
   line-height: 1.5;
   word-wrap: break-word;
-  min-width: 340px;
-  max-width: 600px;
+  min-width: 210px;
 }
+
+.market-card.color-1 { background: linear-gradient(145deg, #f4f9ff, #e5edff); }
+.market-card.color-2 { background: linear-gradient(145deg, #fef7f1, #ffe8d9); }
+.market-card.color-3 { background: linear-gradient(145deg, #f5fff7, #e3ffec); }
+.market-card.color-4 { background: linear-gradient(145deg, #f9f5ff, #efe7ff); }
 
 .market-card h3 {
   margin-top: 0;

@@ -131,7 +131,7 @@
           });
       }
 
-      function buildCard(market, statusText, timeText) {
+      function buildCard(market, statusText, timeText, idx) {
         const expiry = market.expires_at ? new Date(market.expires_at) : null;
         const categoryLabel = market.normalizedCategory || "Everything else";
         const resolvedTag = market.outcome ? ` (${market.outcome})` : "";
@@ -150,6 +150,8 @@
 
         const card = document.createElement("div");
         card.classList.add("market-card");
+        const palette = ["color-1", "color-2", "color-3", "color-4"];
+        card.classList.add(palette[idx % palette.length]);
         card.innerHTML = `
           <div class="market-card__header">
             <h3>${market.title}</h3>
@@ -196,20 +198,20 @@
         const slice = filtered.slice(start, start + PAGE_SIZE);
         container.innerHTML = "";
 
-        slice.forEach(m => {
-          const now = new Date();
-          const expiry = m.expires_at ? new Date(m.expires_at) : null;
-          let timeText = "";
-          if (expiry) {
-            const diffMs = expiry - now;
+          slice.forEach((m, idx) => {
+            const now = new Date();
+            const expiry = m.expires_at ? new Date(m.expires_at) : null;
+            let timeText = "";
+            if (expiry) {
+              const diffMs = expiry - now;
             const diffHours = Math.abs(diffMs) / (1000 * 60 * 60);
             timeText = diffMs >= 0
               ? (diffHours < 1 ? `${Math.round(diffHours * 60)} min left` : `${diffHours.toFixed(1)} h left`)
               : `${Math.round(diffHours)} h ago`;
-          }
-          const statusText = m._status;
-          container.appendChild(buildCard(m, statusText, timeText));
-        });
+            }
+            const statusText = m._status;
+            container.appendChild(buildCard(m, statusText, timeText, idx));
+          });
 
         if (pageInfo) {
           pageInfo.textContent = `Page ${state.page[section]} of ${totalPages} (${filtered.length} markets)`;
