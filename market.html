@@ -179,22 +179,40 @@
             const startTime = parseUtc(market.created_at);
             const endTime = parseUtc(market.expires_at);
 
-            // Convert price history to fixed-interval data points (from creation → now)
-            const fullSpanMs = endTime - startTime;
+            // Build stepped series: horizontal when flat, vertical spike on change.
+            const buildSteppedSeries = (points, key) => {
+              const sorted = (points || [])
+                .slice()
+                .sort((a, b) => parseUtc(a.timestamp) - parseUtc(b.timestamp));
 
-            // Build initial dataset (only up to current time)
-            const buildProgressData = (history) => {
+              const series = [];
               const now = new Date();
-              const visiblePoints = history.filter(p => parseUtc(p.timestamp) <= now);
-              return {
-                labels: visiblePoints.map(p => parseUtc(p.timestamp).toLocaleTimeString()),
-                yesData: visiblePoints.map(p => p.price_yes),
-                noData: visiblePoints.map(p => p.price_no)
-              };
+
+              if (sorted.length === 0) {
+                const baseline = 0.5;
+                series.push({ x: startTime, y: baseline });
+                series.push({ x: now < endTime ? now : endTime, y: baseline });
+                return series;
+              }
+
+              sorted.forEach((p, idx) => {
+                const t = parseUtc(p.timestamp);
+                const y = p[key];
+                if (idx === 0 && startTime && startTime < t) {
+                  series.push({ x: startTime, y });
+                }
+                series.push({ x: t, y });
+              });
+
+              const last = series[series.length - 1];
+              const tailX = now < endTime ? now : endTime;
+              if (tailX > last.x) series.push({ x: tailX, y: last.y });
+              if (endTime > tailX) series.push({ x: endTime, y: last.y });
+              return series;
             };
 
-            // Initialize with data up to now
-            let { labels, yesData, noData } = buildProgressData(history);
+            const yesSeries = buildSteppedSeries(history, 'price_yes');
+            const noSeries = buildSteppedSeries(history, 'price_no');
 
             const progressChart = new Chart(progressCtx, {
               type: 'line',
@@ -202,22 +220,20 @@
                 datasets: [
                   {
                     label: 'YES Price',
-                    data: history.map(p => ({
-                      x: parseUtc(p.timestamp),
-                      y: p.price_yes
-                    })),
+                    data: yesSeries,
                     borderColor: 'green',
-                    tension: 0.3,
+                    tension: 0,
+                    stepped: 'before',
+                    pointRadius: 0,
                     fill: false
                   },
                   {
                     label: 'NO Price',
-                    data: history.map(p => ({
-                      x: parseUtc(p.timestamp),
-                      y: p.price_no
-                    })),
+                    data: noSeries,
                     borderColor: 'red',
-                    tension: 0.3,
+                    tension: 0,
+                    stepped: 'before',
+                    pointRadius: 0,
                     fill: false
                   }
                 ]
@@ -228,7 +244,7 @@
                   x: {
                     type: 'time',
                     time: {
-                      unit: 'hour', // or 'minute' if you want finer granularity
+                      unit: 'hour',
                       tooltipFormat: 'MMM d, yyyy HH:mm:ss'
                     },
                     title: {
@@ -243,13 +259,12 @@
                     max: 1,
                     title: {
                       display: true,
-                      text: 'Price (0–1)'
+                      text: 'Price (0-1)'
                     }
                   }
                 }
               }
             });
-
 
             // Live update every 10 seconds until expiry
             const updater = setInterval(() => {
@@ -258,10 +273,10 @@
                 clearInterval(updater);
                 return;
               }
-              const updated = buildProgressData(history);
-              progressChart.data.labels = updated.labels;
-              progressChart.data.datasets[0].data = updated.yesData;
-              progressChart.data.datasets[1].data = updated.noData;
+              const yes = buildSteppedSeries(history, 'price_yes');
+              const no = buildSteppedSeries(history, 'price_no');
+              progressChart.data.datasets[0].data = yes;
+              progressChart.data.datasets[1].data = no;
               progressChart.update();
             }, 10000);
           }
