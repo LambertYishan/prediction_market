@@ -8,6 +8,8 @@
   <link rel="stylesheet" href="styles.css">
   <!-- Chart.js (must load first) -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <!-- Chart.js zoom/pan plugin -->
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
 
   <!-- Date adapter (must load after Chart.js) -->
   <script
@@ -49,6 +51,12 @@
     <!-- Time Progress Chart -->
     <section id="progress-chart-section" class="hidden">
       <h3>Market Progress Over Time</h3>
+      <div class="chart-controls">
+        <button id="progress-zoom-in" class="btn-secondary">Zoom In</button>
+        <button id="progress-zoom-out" class="btn-secondary">Zoom Out</button>
+        <button id="progress-zoom-reset" class="btn-secondary">Reset</button>
+        <span class="chart-hint">Scroll to zoom, drag to pan</span>
+      </div>
       <canvas id="progressChart" width="400" height="200"></canvas>
     </section>
 
@@ -240,6 +248,23 @@
               },
               options: {
                 animation: false,
+                plugins: {
+                  legend: { position: 'bottom' },
+                  zoom: {
+                    limits: {
+                      x: { min: startTime, max: endTime }
+                    },
+                    pan: {
+                      enabled: true,
+                      mode: 'x'
+                    },
+                    zoom: {
+                      wheel: { enabled: true },
+                      pinch: { enabled: true },
+                      mode: 'x'
+                    }
+                  }
+                },
                 scales: {
                   x: {
                     type: 'time',
@@ -279,6 +304,14 @@
               progressChart.data.datasets[1].data = no;
               progressChart.update();
             }, 10000);
+
+            // Hook up zoom controls
+            const zoomInBtn = document.getElementById('progress-zoom-in');
+            const zoomOutBtn = document.getElementById('progress-zoom-out');
+            const zoomResetBtn = document.getElementById('progress-zoom-reset');
+            if (zoomInBtn) zoomInBtn.onclick = () => progressChart.zoom(1.2);
+            if (zoomOutBtn) zoomOutBtn.onclick = () => progressChart.zoom(0.8);
+            if (zoomResetBtn) zoomResetBtn.onclick = () => progressChart.resetZoom();
           }
         } catch (err) {
           console.error("Failed to load price history:", err);
