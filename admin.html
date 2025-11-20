@@ -37,6 +37,15 @@
           Example: YES if inflation in October exceeds 3.2%, NO otherwise."></textarea>
         </label>
         <label>
+          Category:
+          <select id="market-category" required>
+            <option value="Sports">Sports</option>
+            <option value="Politics">Politics</option>
+            <option value="Finance &amp; Economy">Finance &amp; Economy</option>
+            <option value="Everything else" selected>Everything else</option>
+          </select>
+        </label>
+        <label>
           Liquidity (b):
           <input type="number" id="market-liquidity" min="1" step="1" value="100">
         </label>
@@ -86,6 +95,7 @@
           <tr>
             <th>ID</th>
             <th>Title</th>
+            <th>Category</th>
             <th>Expires</th>
             <th>Resolved</th>
             <th>Outcome</th>
@@ -111,6 +121,7 @@
         const title = document.getElementById('market-title').value;
         const description = document.getElementById('market-description').value;
         const liquidity = parseFloat(document.getElementById('market-liquidity').value);
+        const category = document.getElementById('market-category').value;
         const expires_at_input = document.getElementById('market-expires').value;
         const admin_username = document.getElementById('admin-username').value;
         const admin_password = document.getElementById('admin-password').value;
@@ -120,7 +131,7 @@
           const res = await fetch(apiBase + '/markets', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title, description, liquidity, admin_username, admin_password, expires_at })
+            body: JSON.stringify({ title, description, liquidity, category, admin_username, admin_password, expires_at })
           });
           const data = await res.json();
           if (!res.ok) throw new Error(data.detail || 'Error creating market');
@@ -150,23 +161,25 @@
     // LOAD MARKETS
     async function loadMarketsAdmin() {
       const tableBody = document.querySelector('#markets-table tbody');
-      tableBody.innerHTML = '<tr><td colspan="6">Loading...</td></tr>';
+      tableBody.innerHTML = '<tr><td colspan="7">Loading...</td></tr>';
       try {
         const res = await fetch(apiBase + '/markets');
         const markets = await res.json();
         if (!res.ok) throw new Error('Failed to load markets.');
         if (markets.length === 0) {
-          tableBody.innerHTML = '<tr><td colspan="6">No markets found.</td></tr>';
+          tableBody.innerHTML = '<tr><td colspan="7">No markets found.</td></tr>';
           return;
         }
 
         tableBody.innerHTML = '';
         markets.forEach(m => {
           const expires = m.expires_at ? new Date(m.expires_at).toLocaleString() : '—';
+          const categoryLabel = m.category || 'Everything else';
           const tr = document.createElement('tr');
           tr.innerHTML = `
             <td>${m.id}</td>
             <td>${m.title}</td>
+            <td>${categoryLabel}</td>
             <td>${expires}</td>
             <td>${m.resolved ? '✅' : '❌'}</td>
             <td>${m.outcome || '—'}</td>

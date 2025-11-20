@@ -55,6 +55,8 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "predictit123")
 # Create database tables. In production you may want to manage migrations
 # separately using Alembic, but for a quick start this is convenient.
 Base.metadata.create_all(bind=engine)
+with contextlib.suppress(Exception):
+    ensure_market_category_column()
 
 app = FastAPI(title="Prediction Market API", version="0.1.0")
 
@@ -132,6 +134,70 @@ def verify_admin(username: str, password: str):
 
 MAX_CREDITS_PER_MARKET = 100  # user cannot have more than 100 credits invested in a single market
 
+DEFAULT_CATEGORY = "Everything else"
+CATEGORY_CHOICES = [
+    "Sports",
+    "Politics",
+    "Finance & Economy",
+    DEFAULT_CATEGORY,
+]
+_CATEGORY_ALIAS = {
+    "sport": "Sports",
+    "sports": "Sports",
+    "politic": "Politics",
+    "politics": "Politics",
+    "finance": "Finance & Economy",
+    "economy": "Finance & Economy",
+    "finance & economy": "Finance & Economy",
+    "finance and economy": "Finance & Economy",
+    "finance+economy": "Finance & Economy",
+    "money": "Finance & Economy",
+    "other": DEFAULT_CATEGORY,
+    "others": DEFAULT_CATEGORY,
+    "everything else": DEFAULT_CATEGORY,
+    "misc": DEFAULT_CATEGORY,
+}
+
+
+def normalize_category(value: Optional[str]) -> str:
+    """Map arbitrary input into one of the supported categories."""
+    if not value:
+        return DEFAULT_CATEGORY
+
+    cleaned = value.strip().lower()
+    for choice in CATEGORY_CHOICES:
+        if cleaned == choice.lower():
+            return choice
+    if cleaned in _CATEGORY_ALIAS:
+        return _CATEGORY_ALIAS[cleaned]
+
+    if cleaned.startswith("sport"):
+        return "Sports"
+    if cleaned.startswith("politic"):
+        return "Politics"
+    if cleaned.startswith("finance") or cleaned.startswith("econom"):
+        return "Finance & Economy"
+    return DEFAULT_CATEGORY
+
+
+def ensure_market_category_column():
+    """Ensure the markets table has a category column for legacy databases."""
+    inspector = inspect(engine)
+    tables = inspector.get_table_names()
+    if "markets" not in tables:
+        return
+    columns = [col["name"] for col in inspector.get_columns("markets")]
+    if "category" in columns:
+        return
+    with engine.connect() as conn:
+        conn.execute(
+            text(
+                "ALTER TABLE markets ADD COLUMN category VARCHAR(64) NOT NULL DEFAULT 'Everything else'"
+            )
+        )
+        conn.commit()
+
+
 def check_investment_limit(user_id: int, market_id: int, invest_amount: float, db: Session):
     """
     Enforce that a user cannot have more than 100 credits invested in a given market.
@@ -169,8 +235,17 @@ class MarketCreateRequest(BaseModel):
     description: Optional[str] = Field(None, example="Weather forecast for New York City.")
     liquidity: Optional[float] = Field(None, example=100.0)
     expires_at: Optional[datetime] = Field(None, example="2025-12-31T23:59:00Z")
+    category: Optional[str] = Field(
+        None,
+        description="Market category label",
+        example="Sports"
+    )
     admin_username: str
     admin_password: str
+
+    @validator("category", pre=True, always=True)
+    def validate_category(cls, v):
+        return normalize_category(v)
     
 
 class BetRequest(BaseModel):
@@ -204,9 +279,14 @@ class MarketResponse(BaseModel):
     outcome: Optional[str]
     price_yes: float
     price_no: float
+    category: str = Field(default=DEFAULT_CATEGORY)
     created_at: Optional[datetime] = None
     expires_at: Optional[datetime] = None
     deletion_note: Optional[str] = None
+
+    @validator("category", pre=True, always=True)
+    def ensure_category(cls, v):
+        return normalize_category(v)
     
     @validator("created_at", "expires_at", pre=True, always=True)
     def ensure_utc(cls, v):
@@ -370,6 +450,7 @@ def list_markets(db: Session = Depends(get_db)):
                 outcome=m.outcome,
                 price_yes=p_yes,
                 price_no=p_no,
+                category=m.category,
                 created_at=created_at,
                 expires_at=expires_at
             ).dict()
@@ -385,6 +466,7 @@ def create_market(request: MarketCreateRequest, db: Session = Depends(get_db)):
     verify_admin(request.admin_username, request.admin_password)
 
     liquidity = request.liquidity if request.liquidity and request.liquidity > 0 else 100.0
+    category = normalize_category(request.category)
     expires_at = request.expires_at
     if expires_at:
         if expires_at.tzinfo is None:
@@ -403,7 +485,8 @@ def create_market(request: MarketCreateRequest, db: Session = Depends(get_db)):
         no_shares=0.0,
         resolved=False,
         outcome=None,
-        expires_at=expires_at
+        expires_at=expires_at,
+        category=category
     )
     db.add(market)
     db.commit()
@@ -419,9 +502,10 @@ def create_market(request: MarketCreateRequest, db: Session = Depends(get_db)):
         outcome=market.outcome,
         price_yes=0.5,
         price_no=0.5,
+        category=market.category,
         created_at=market.created_at,
         expires_at=market.expires_at
-)
+    )
 
 
 from backend.models import User, Market, Bet, Transaction
@@ -760,6 +844,7 @@ def resolve_market(request: ResolveRequest, db: Session = Depends(get_db)):
         outcome=market.outcome,
         price_yes=p_yes,
         price_no=p_no,
+        category=market.category,
         created_at=market.created_at,
         expires_at=market.expires_at
     )
@@ -987,6 +1072,7 @@ def get_market(market_id: int, db: Session = Depends(get_db)):
         outcome=market.outcome,
         price_yes=p_yes,
         price_no=p_no,
+        category=market.category,
         created_at=market.created_at,
         expires_at=market.expires_at
     )
@@ -1177,4 +1263,3 @@ def get_user_accuracy(user_id: int, db: Session = Depends(get_db)):
 @app.get("/")
 def root():
     return {"message": "Prediction Market API is running!"}
-

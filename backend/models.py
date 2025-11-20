@@ -54,6 +54,7 @@ class Market(Base):
     yes_shares = Column(Float, default=0.0, nullable=False)
     no_shares = Column(Float, default=0.0, nullable=False)
     liquidity = Column(Float, default=100.0, nullable=False)
+    category = Column(String, nullable=False, default="Everything else")
     resolved = Column(Boolean, default=False, nullable=False)
     outcome = Column(String, nullable=True)  # 'YES', 'NO' or None
     deleted = Column(Boolean, default=False)

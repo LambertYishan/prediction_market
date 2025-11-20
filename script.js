@@ -252,7 +252,10 @@ async function loadMarketDetails() {
       }
 
       // ✅ Add Sell buttons dynamically
+      const existingSell = betContainer.querySelector('.sell-actions');
+      if (existingSell) existingSell.remove();
       const sellDiv = document.createElement('div');
+      sellDiv.className = 'sell-actions';
       sellDiv.innerHTML = `
         <button onclick="sellPosition('YES')">Sell YES</button>
         <button onclick="sellPosition('NO')">Sell NO</button>
@@ -260,7 +263,7 @@ async function loadMarketDetails() {
       betContainer.appendChild(sellDiv);
 
       // ✅ Handle new bets
-      betForm.addEventListener('submit', async function (e) {
+      betForm.onsubmit = async function (e) {
         e.preventDefault();
         const userId = localStorage.getItem('user_id');
         if (!userId) {
@@ -287,7 +290,7 @@ async function loadMarketDetails() {
           }
           const bet = await res.json();
           betMessage.textContent =
-            `✅ Bet placed: ${bet.amount} shares @ ${bet.price.toFixed(2)} (cost: ${bet.total_cost.toFixed(2)})`;
+            `? Bet placed: ${bet.amount} shares @ ${bet.price.toFixed(2)} (cost: ${bet.total_cost.toFixed(2)})`;
 
           // Refresh balance + invested
           const userRes = await fetch(apiBase + `/user/${userId}`);
@@ -301,7 +304,8 @@ async function loadMarketDetails() {
         } catch (err) {
           betMessage.textContent = 'Request failed';
         }
-      }, { once: true });
+      };
+
     }
 
     // ✅ Return the market for chart/leaderboard
@@ -322,7 +326,25 @@ async function loadMarketDetails() {
 /**
  * Create a new market (for admin.html)
  */
-async function createMarket(title, description, liquidity, admin_username, admin_password, expires_at) {
+async function createMarket(...args) {
+  const CATEGORY_OPTIONS = ["Sports", "Politics", "Finance & Economy", "Everything else"];
+  const [title, description, liquidity] = args;
+  let category = "Everything else";
+  let admin_username;
+  let admin_password;
+  let expires_at;
+
+  if (args.length >= 7 && CATEGORY_OPTIONS.includes(args[3])) {
+    category = args[3];
+    admin_username = args[4];
+    admin_password = args[5];
+    expires_at = args[6];
+  } else {
+    admin_username = args[3];
+    admin_password = args[4];
+    expires_at = args[5];
+  }
+
   try {
     const res = await fetch(apiBase + '/markets', {
       method: 'POST',
@@ -331,6 +353,7 @@ async function createMarket(title, description, liquidity, admin_username, admin
         title,
         description,
         liquidity,
+        category,
         admin_username,
         admin_password,
         expires_at

@@ -161,6 +161,16 @@ button:hover {
   background-color: #1e40af;
 }
 
+.sell-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.sell-actions button {
+  margin-top: 0;
+}
+
 .guidance {
   background-color: #f9f9f9;
   border-left: 4px solid #4CAF50;
