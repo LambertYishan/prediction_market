@@ -19,7 +19,10 @@
 
 <body>
   <header>
-    <h1 class="brand-title">OpenForecast</h1>
+    <div class="brand-mark">
+      <img src="PM Logo.png" alt="Logo" class="brand-logo">
+      <span class="brand-title">OpenForecast</span>
+    </div>
     <nav>
       <a href="index.html">Home</a>
       <a href="admin.html">Admin</a>
@@ -101,6 +104,14 @@
         </div>
       </form>
     </section>
+
+    <section id="market-posts" class="card table-card">
+      <div class="section-header">
+        <h3 class="section-title">Related forum posts</h3>
+        <span class="badge">Forum</span>
+      </div>
+      <div id="market-posts-body" class="related-posts"></div>
+    </section>
   </main>
   <script src="script.js"></script>
   <script>
@@ -109,6 +120,9 @@
       const market = await loadMarketDetails();
       console.log("Loaded market:", market);
       console.log("Expires_at:", market?.expires_at);
+      if (market) {
+        await loadRelatedPostsForMarket(market.id);
+      }
 
       // Countdown setup
       if (market && market.expires_at) {
@@ -312,6 +326,54 @@
         await loadLeaderboard(market.id);
       }
     });
+
+    // Related forum posts
+    async function loadRelatedPostsForMarket(marketId) {
+      const container = document.getElementById('market-posts-body');
+      if (!container) return;
+      container.innerHTML = '<p class="muted">Loading related posts...</p>';
+      try {
+        const res = await fetch(`${apiBase}/forum/posts?market_id=${marketId}`);
+        const payload = await res.json();
+        if (!res.ok) throw new Error(payload.detail || 'Unable to load posts');
+        const posts = Array.isArray(payload) ? payload : (payload.posts || []);
+        if (!posts.length) {
+          container.innerHTML = '<p class="muted">No related posts yet.</p>';
+          return;
+        }
+        container.innerHTML = posts.slice(0, 5).map(renderRelatedPost).join('');
+      } catch (err) {
+        console.warn('Related posts unavailable:', err);
+        container.innerHTML = '<p class="muted">No related posts yet.</p>';
+      }
+    }
+
+    function renderRelatedPost(post) {
+      const created = post.created_at
+        ? (typeof parseUtc === 'function'
+          ? parseUtc(post.created_at).toLocaleString()
+          : post.created_at)
+        : '';
+      const body = post.body || '';
+      return `
+        <div class="related-post-card">
+          <h4>${escapeHtml(post.title || 'Untitled')}</h4>
+          <div class="related-post-meta">
+            <span>${escapeHtml(post.username || 'Anonymous')}</span>
+            ${created ? `<span>${created}</span>` : ''}
+            <span class="mini-pill">${escapeHtml(post.post_type || 'discussion')}</span>
+          </div>
+          <p class="muted">${escapeHtml(body.slice(0, 180))}${body.length > 180 ? '…' : ''}</p>
+          <a class="related-post-link" href="forum.html">View in forum</a>
+        </div>
+      `;
+    }
+
+    function escapeHtml(str) {
+      return String(str).replace(/[&<>"']/g, (char) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      }[char]));
+    }
 
     // Leaderboard rendering
     async function loadLeaderboard(marketId) {

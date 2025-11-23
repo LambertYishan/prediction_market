@@ -66,6 +66,7 @@ class Market(Base):
 
     bets = relationship("Bet", back_populates="market")
     price_history = relationship("PriceHistory", backref="market")
+    posts = relationship("Post", back_populates="market")
 
 
 class Bet(Base):
@@ -120,6 +121,7 @@ class Post(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    market_id = Column(Integer, ForeignKey("markets.id"), nullable=True)
     username = Column(String, nullable=False)
     title = Column(String, nullable=False)
     body = Column(Text, nullable=False)
@@ -133,6 +135,7 @@ class Post(Base):
 
     comments = relationship("Comment", back_populates="post", cascade="all, delete-orphan")
     author = relationship("User", backref="posts", foreign_keys=[user_id])
+    market = relationship("Market", back_populates="posts", foreign_keys=[market_id])
 
 
 class Comment(Base):

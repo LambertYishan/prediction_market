@@ -8,7 +8,10 @@
 </head>
 <body>
   <header>
-    <h1 class="brand-title">OpenForecast</h1>
+    <div class="brand-mark">
+      <img src="PM Logo.png" alt="Logo" class="brand-logo">
+      <span class="brand-title">OpenForecast</span>
+    </div>
     <nav>
       <a href="index.html">Home</a>
       <a href="admin.html">Admin</a>
@@ -76,6 +79,10 @@
             <label>
               Tags (comma separated)
               <input type="text" id="post-tags" placeholder="e.g. roadmap, sports, governance">
+            </label>
+            <label>
+              Related market ID (optional)
+              <input type="number" id="post-market-id" min="1" placeholder="Link this post to a market">
             </label>
             <label>
               Post type
@@ -177,7 +184,7 @@
 
   <script src="script.js"></script>
   <script>
-    const forumState = { posts: [], filter: 'all', sort: 'recent', highlightsOnly: false };
+    const forumState = { posts: [], filter: 'all', sort: 'recent', highlightsOnly: false, marketLookup: {} };
 
     document.addEventListener('DOMContentLoaded', () => {
       updateUserGreeting();
@@ -236,6 +243,7 @@
         body: raw.body || raw.content || '',
         username: raw.username || raw.author || 'Anonymous',
         user_id: raw.user_id ?? raw.userId ?? null,
+        market_id: raw.market_id ?? raw.marketId ?? null,
         tags: raw.tags || [],
         post_type: raw.post_type || raw.type || 'discussion',
         is_highlighted: Boolean(raw.is_highlighted || raw.highlighted || raw.featured),
@@ -260,6 +268,7 @@
         console.warn('Falling back to sample forum data:', err);
         forumState.posts = samplePosts().map(normalizePost);
       }
+      await hydrateMarketLookup();
       renderPosts();
     }
 
@@ -280,6 +289,7 @@
           created_at: iso(0),
           updated_at: iso(0),
           tags: ['community', 'onboarding'],
+          market_id: 1,
           comments: [
             { id: 1, body: 'Great to have a central place for discussion!', username: 'alice', created_at: iso(5) }
           ]
@@ -296,6 +306,7 @@
           created_at: iso(120),
           updated_at: iso(90),
           tags: ['markets', 'ideas'],
+          market_id: 2,
           comments: [
             { id: 2, body: 'How about a market on the next CPI print?', username: 'macromary', created_at: iso(80) },
             { id: 3, body: 'Would love to see more soccer lines.', username: 'footyfan', created_at: iso(70) }
@@ -314,9 +325,49 @@
           created_at: iso(300),
           updated_at: iso(60),
           tags: ['release', 'portal'],
+          market_id: 3,
           comments: []
         }
       ];
+    }
+
+    async function hydrateMarketLookup() {
+      try {
+        const res = await fetch(`${apiBase}/markets`);
+        if (!res.ok) throw new Error('Failed to load markets');
+        const markets = await res.json();
+        forumState.marketLookup = {};
+        markets.forEach(m => {
+          forumState.marketLookup[m.id] = {
+            title: m.title,
+            resolved: m.resolved,
+            outcome: m.outcome,
+            expires_at: m.expires_at
+          };
+        });
+      } catch (err) {
+        console.warn('Market lookup unavailable:', err);
+      }
+    }
+
+    function renderMarketLink(marketId) {
+      if (!marketId) return '';
+      const info = forumState.marketLookup[marketId];
+      const title = info?.title ? escapeHtml(info.title) : `Market #${marketId}`;
+      const status = (() => {
+        if (!info) return 'View market';
+        if (info.resolved) return info.outcome ? `Resolved (${info.outcome})` : 'Resolved';
+        if (info.expires_at && new Date(info.expires_at) < new Date()) return 'Expired';
+        return 'Active';
+      })();
+      return `
+        <div class="post-market">
+          <span class="mini-pill">Market</span>
+          <span class="muted">${title}</span>
+          <span class="muted">• ${status}</span>
+          <a class="related-post-link" href="market.html?id=${marketId}">Go to market</a>
+        </div>
+      `;
     }
 
     function renderPosts() {
@@ -367,6 +418,7 @@
             <div class="post-badges">${badges.join('')}</div>
           </div>
           <p class="post-body">${escapeHtml(post.body)}</p>
+          ${renderMarketLink(post.market_id)}
           ${post.release_note ? `<p class="release-note">${escapeHtml(post.release_note)}</p>` : ''}
           ${tags.length ? `<div class="post-tags">${tags.map(tag => `<span class="tag">${escapeHtml(tag.trim())}</span>`).join('')}</div>` : ''}
           <div class="post-actions">
@@ -450,6 +502,9 @@
         user_id: userId ? Number(userId) : null,
         tags: document.getElementById('post-tags').value.split(',').map(t => t.trim()).filter(Boolean),
         post_type: document.getElementById('post-type').value,
+        market_id: document.getElementById('post-market-id').value
+          ? Number(document.getElementById('post-market-id').value)
+          : null,
         is_highlighted: document.getElementById('post-highlight').checked,
         is_release: document.getElementById('post-type').value === 'release' || document.getElementById('post-highlight').checked
       };
@@ -554,7 +609,8 @@
             title: newTitle.trim(),
             body: newBody.trim(),
             username: post.username,
-            user_id: post.user_id
+            user_id: post.user_id,
+            market_id: post.market_id
           })
         });
         const data = await res.json();
@@ -792,6 +848,14 @@
     .mini-author {
       color: #475569;
       font-size: 0.9rem;
+    }
+
+    .post-market {
+      display: flex;
+      gap: 0.35rem;
+      align-items: center;
+      flex-wrap: wrap;
+      margin: 0.25rem 0 0.4rem 0;
     }
 
     .badge.success { background: #e8f5e9; color: #166534; }
