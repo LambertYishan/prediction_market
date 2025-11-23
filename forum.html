@@ -1,0 +1,838 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenForecast Forum</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header>
+    <h1 class="brand-title">OpenForecast</h1>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="admin.html">Admin</a>
+      <a href="forum.html">Forum</a>
+      <a href="login.html" id="login-link">Login / Register</a>
+      <a href="portal.html" id="portal-link" class="hidden">My Portal</a>
+      <a href="#" id="logout-link" class="hidden">Logout</a>
+      <span id="user-greeting" class="hidden"></span>
+    </nav>
+  </header>
+
+  <main>
+    <section class="market-hero card">
+      <div class="section-header">
+        <div>
+          <h2 class="section-title">Community Forum</h2>
+          <p class="muted">Share market ideas, roadmap updates, and community highlights.</p>
+        </div>
+        <div class="status-line">
+          <span class="status-badge active">Open</span>
+          <span class="badge">Posts + Comments</span>
+        </div>
+      </div>
+      <div class="stat-grid">
+        <div class="stat-card">
+          <span>Post requirements</span>
+          <strong>Title, author, body</strong>
+        </div>
+        <div class="stat-card">
+          <span>Moderation</span>
+          <strong>Edit, delete, highlight</strong>
+        </div>
+        <div class="stat-card">
+          <span>History</span>
+          <strong>Date of post + edits</strong>
+        </div>
+        <div class="stat-card">
+          <span>Admins</span>
+          <strong>Release + community spotlight</strong>
+        </div>
+      </div>
+    </section>
+
+    <section class="card-row">
+      <div class="card">
+        <div class="section-header">
+          <h2 class="section-title">Start a discussion</h2>
+          <span class="badge">New post</span>
+        </div>
+        <p class="muted">Posts are tied to your user record (user_id + username) from the current session.</p>
+        <form id="create-post-form">
+          <label>
+            Title
+            <input type="text" id="post-title" required placeholder="Add a clear title">
+          </label>
+          <label>
+            Content
+            <textarea id="post-body" rows="4" required placeholder="What should the community know?"></textarea>
+          </label>
+          <div class="order-grid">
+            <label>
+              Display name
+              <input type="text" id="post-username" placeholder="Defaults to your username" autocomplete="name">
+            </label>
+            <label>
+              Tags (comma separated)
+              <input type="text" id="post-tags" placeholder="e.g. roadmap, sports, governance">
+            </label>
+            <label>
+              Post type
+              <select id="post-type">
+                <option value="discussion" selected>Community discussion</option>
+                <option value="release">Release update</option>
+                <option value="announcement">Announcement</option>
+              </select>
+            </label>
+            <label class="inline-check">
+              <input type="checkbox" id="post-highlight">
+              Flag as community highlight (admin only)
+            </label>
+          </div>
+          <button type="submit">Publish post</button>
+          <p id="post-message" class="muted"></p>
+        </form>
+      </div>
+
+      <div class="card">
+        <div class="section-header">
+          <h2 class="section-title">Admin spotlight</h2>
+          <span class="badge">Moderation</span>
+        </div>
+        <p class="muted">Feature community posts or push release updates. These controls mirror the admin credential flow used elsewhere.</p>
+        <label>
+          Admin username
+          <input type="text" id="admin-username" placeholder="Admin username">
+        </label>
+        <label>
+          Admin password
+          <input type="password" id="admin-password" placeholder="Admin password">
+        </label>
+        <label>
+          Target post ID
+          <input type="number" id="admin-target-id" min="1" placeholder="e.g. 12">
+        </label>
+        <label>
+          Release note (optional)
+          <textarea id="admin-release-note" rows="3" placeholder="Short release summary to attach"></textarea>
+        </label>
+        <div class="button-row">
+          <button type="button" data-admin-action="highlight">Highlight</button>
+          <button type="button" data-admin-action="unhighlight">Remove highlight</button>
+          <button type="button" data-admin-action="release">Mark as release</button>
+          <button type="button" data-admin-action="clear-release">Clear release</button>
+        </div>
+        <p id="admin-message" class="muted"></p>
+      </div>
+    </section>
+
+    <section class="card-row">
+      <div class="card">
+        <div class="section-header">
+          <h2 class="section-title">Community highlights</h2>
+          <span class="badge">Pinned</span>
+        </div>
+        <div id="highlight-board" class="mini-board"></div>
+      </div>
+      <div class="card">
+        <div class="section-header">
+          <h2 class="section-title">Release updates</h2>
+          <span class="badge">Changelog</span>
+        </div>
+        <div id="release-board" class="mini-board"></div>
+      </div>
+    </section>
+
+    <section class="card table-card">
+      <div class="section-header">
+        <h2 class="section-title">Forum feed</h2>
+        <div class="button-row">
+          <label class="compact">
+            Type
+            <select id="post-filter">
+              <option value="all">All posts</option>
+              <option value="discussion">Community</option>
+              <option value="release">Release updates</option>
+              <option value="announcement">Announcements</option>
+            </select>
+          </label>
+          <label class="compact">
+            Sort by
+            <select id="post-sort">
+              <option value="recent">Latest</option>
+              <option value="edited">Last edited</option>
+              <option value="comments">Most commented</option>
+            </select>
+          </label>
+          <label class="pill inline-pill">
+            <input type="checkbox" id="highlight-only">
+            Highlights only
+          </label>
+        </div>
+      </div>
+      <div id="post-list" class="post-list"></div>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+  <script>
+    const forumState = { posts: [], filter: 'all', sort: 'recent', highlightsOnly: false };
+
+    document.addEventListener('DOMContentLoaded', () => {
+      updateUserGreeting();
+      hydrateAuthorDefaults();
+      wireFilters();
+      loadPosts();
+
+      document.getElementById('create-post-form').addEventListener('submit', submitPost);
+      document.getElementById('post-list').addEventListener('click', handlePostAction);
+      document.getElementById('post-list').addEventListener('submit', handleCommentSubmit);
+      document.querySelectorAll('[data-admin-action]').forEach(btn => {
+        btn.addEventListener('click', () => runAdminAction(btn.getAttribute('data-admin-action')));
+      });
+    });
+
+    function hydrateAuthorDefaults() {
+      const nameInput = document.getElementById('post-username');
+      const username = localStorage.getItem('username');
+      if (username && nameInput && !nameInput.value) nameInput.value = username;
+    }
+
+    function wireFilters() {
+      document.getElementById('post-filter').addEventListener('change', (e) => {
+        forumState.filter = e.target.value;
+        renderPosts();
+      });
+      document.getElementById('post-sort').addEventListener('change', (e) => {
+        forumState.sort = e.target.value;
+        renderPosts();
+      });
+      document.getElementById('highlight-only').addEventListener('change', (e) => {
+        forumState.highlightsOnly = e.target.checked;
+        renderPosts();
+      });
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/[&<>"']/g, (char) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      }[char]));
+    }
+
+    function normalizeComment(raw) {
+      return {
+        id: raw.id || crypto.randomUUID?.() || Date.now(),
+        body: raw.body || raw.content || '',
+        username: raw.username || raw.author || 'Anonymous',
+        created_at: raw.created_at || raw.createdAt || new Date().toISOString()
+      };
+    }
+
+    function normalizePost(raw) {
+      return {
+        id: raw.id,
+        title: raw.title || raw.post_title || 'Untitled',
+        body: raw.body || raw.content || '',
+        username: raw.username || raw.author || 'Anonymous',
+        user_id: raw.user_id ?? raw.userId ?? null,
+        tags: raw.tags || [],
+        post_type: raw.post_type || raw.type || 'discussion',
+        is_highlighted: Boolean(raw.is_highlighted || raw.highlighted || raw.featured),
+        is_release: Boolean(raw.is_release || raw.release),
+        release_note: raw.release_note || raw.note || '',
+        created_at: raw.created_at || raw.createdAt || new Date().toISOString(),
+        updated_at: raw.updated_at || raw.updatedAt || raw.created_at || new Date().toISOString(),
+        comments: (raw.comments || []).map(normalizeComment)
+      };
+    }
+
+    async function loadPosts() {
+      const list = document.getElementById('post-list');
+      list.innerHTML = '<p class="muted">Loading posts...</p>';
+      try {
+        const res = await fetch(`${apiBase}/forum/posts`);
+        if (!res.ok) throw new Error('Unable to load forum posts');
+        const payload = await res.json();
+        const posts = Array.isArray(payload) ? payload : (payload.posts || []);
+        forumState.posts = posts.map(normalizePost);
+      } catch (err) {
+        console.warn('Falling back to sample forum data:', err);
+        forumState.posts = samplePosts().map(normalizePost);
+      }
+      renderPosts();
+    }
+
+    function samplePosts() {
+      const now = new Date();
+      const iso = (offsetMinutes = 0) => new Date(now.getTime() - offsetMinutes * 60000).toISOString();
+      return [
+        {
+          id: 101,
+          title: 'Welcome to the OpenForecast forum',
+          body: 'Use this space to discuss markets, ask questions, and share ideas. Admins may feature standout community posts.',
+          username: 'admin',
+          user_id: 0,
+          post_type: 'announcement',
+          is_highlighted: true,
+          is_release: true,
+          release_note: 'Forum launched for community discussion and release updates.',
+          created_at: iso(0),
+          updated_at: iso(0),
+          tags: ['community', 'onboarding'],
+          comments: [
+            { id: 1, body: 'Great to have a central place for discussion!', username: 'alice', created_at: iso(5) }
+          ]
+        },
+        {
+          id: 102,
+          title: 'Share your next market idea',
+          body: 'Looking for markets around upcoming elections, major tech launches, and sports finals. Drop suggestions below.',
+          username: 'researcher01',
+          user_id: 12,
+          post_type: 'discussion',
+          is_highlighted: true,
+          is_release: false,
+          created_at: iso(120),
+          updated_at: iso(90),
+          tags: ['markets', 'ideas'],
+          comments: [
+            { id: 2, body: 'How about a market on the next CPI print?', username: 'macromary', created_at: iso(80) },
+            { id: 3, body: 'Would love to see more soccer lines.', username: 'footyfan', created_at: iso(70) }
+          ]
+        },
+        {
+          id: 103,
+          title: 'Release v0.4: new portal analytics',
+          body: 'We added investment tracking and improved sell flows. Please report any issues in the comments.',
+          username: 'admin',
+          user_id: 0,
+          post_type: 'release',
+          is_highlighted: false,
+          is_release: true,
+          release_note: 'Portal analytics shipped; includes investment summary and sell buttons.',
+          created_at: iso(300),
+          updated_at: iso(60),
+          tags: ['release', 'portal'],
+          comments: []
+        }
+      ];
+    }
+
+    function renderPosts() {
+      const list = document.getElementById('post-list');
+      const filtered = forumState.posts
+        .filter(post => forumState.filter === 'all' || post.post_type === forumState.filter)
+        .filter(post => !forumState.highlightsOnly || post.is_highlighted);
+
+      filtered.sort((a, b) => {
+        if (forumState.sort === 'edited') return new Date(b.updated_at) - new Date(a.updated_at);
+        if (forumState.sort === 'comments') return (b.comments?.length || 0) - (a.comments?.length || 0);
+        return new Date(b.created_at) - new Date(a.created_at);
+      });
+
+      if (!filtered.length) {
+        list.innerHTML = '<p class="muted">No posts yet. Be the first to start a thread.</p>';
+      } else {
+        list.innerHTML = filtered.map(postCardMarkup).join('');
+      }
+
+      hydrateCommentNames();
+      renderBoard('highlight-board', forumState.posts.filter(p => p.is_highlighted), 'No highlights yet.');
+      renderBoard('release-board', forumState.posts.filter(p => p.is_release), 'No release updates yet.');
+    }
+
+    function postCardMarkup(post) {
+      const badges = [];
+      if (post.is_highlighted) badges.push('<span class="badge success">Highlight</span>');
+      if (post.is_release) badges.push('<span class="badge neutral">Release</span>');
+      if (post.post_type === 'announcement') badges.push('<span class="badge warning">Announcement</span>');
+      const created = formatDate(post.created_at);
+      const edited = post.updated_at && post.updated_at !== post.created_at
+        ? ` • Edited ${formatDate(post.updated_at)}`
+        : '';
+      const tags = (post.tags || []).filter(Boolean);
+      const comments = post.comments || [];
+      return `
+        <article class="post-card" data-id="${post.id}">
+          <div class="post-header">
+            <div>
+              <h3>${escapeHtml(post.title)}</h3>
+              <div class="post-meta">
+                <span>By ${escapeHtml(post.username || 'Anonymous')}</span>
+                <span>Posted ${created}${edited}</span>
+                <span>Post ID: ${post.id}</span>
+              </div>
+            </div>
+            <div class="post-badges">${badges.join('')}</div>
+          </div>
+          <p class="post-body">${escapeHtml(post.body)}</p>
+          ${post.release_note ? `<p class="release-note">${escapeHtml(post.release_note)}</p>` : ''}
+          ${tags.length ? `<div class="post-tags">${tags.map(tag => `<span class="tag">${escapeHtml(tag.trim())}</span>`).join('')}</div>` : ''}
+          <div class="post-actions">
+            <button data-action="edit" data-id="${post.id}">Edit</button>
+            <button data-action="delete" data-id="${post.id}" class="danger">Delete</button>
+            <button data-action="highlight" data-id="${post.id}" data-flag="${post.is_highlighted ? 'off' : 'on'}">${post.is_highlighted ? 'Remove highlight' : 'Highlight'}</button>
+            <button data-action="release" data-id="${post.id}" data-flag="${post.is_release ? 'off' : 'on'}">${post.is_release ? 'Clear release' : 'Mark release'}</button>
+          </div>
+          <div class="comment-block">
+            <h4>Comments (${comments.length})</h4>
+            <ul class="comment-list">
+              ${comments.map(renderComment).join('')}
+            </ul>
+            <form class="comment-form" data-id="${post.id}">
+              <input type="text" name="comment-username" class="comment-username" placeholder="Your name" autocomplete="name">
+              <input type="text" name="comment" placeholder="Add a comment" required>
+              <button type="submit">Comment</button>
+            </form>
+          </div>
+        </article>
+      `;
+    }
+
+    function renderComment(comment) {
+      return `
+        <li class="comment">
+          <div class="comment-meta">
+            <strong>${escapeHtml(comment.username || 'Anonymous')}</strong>
+            <span>${formatDate(comment.created_at)}</span>
+          </div>
+          <p>${escapeHtml(comment.body)}</p>
+        </li>
+      `;
+    }
+
+    function renderBoard(targetId, posts, emptyText) {
+      const container = document.getElementById(targetId);
+      if (!container) return;
+      if (!posts.length) {
+        container.innerHTML = '<p class="muted">' + emptyText + '</p>';
+        return;
+      }
+      container.innerHTML = posts.slice(0, 3).map(post => `
+        <div class="mini-card">
+          <div class="mini-meta">
+            <span class="mini-title">${escapeHtml(post.title)}</span>
+            <span class="mini-date">${formatDate(post.updated_at || post.created_at)}</span>
+          </div>
+          <p class="mini-body">${escapeHtml(post.release_note || post.body).slice(0, 220)}${post.body.length > 220 ? '…' : ''}</p>
+          <span class="mini-author">By ${escapeHtml(post.username || 'Anonymous')}</span>
+        </div>
+      `).join('');
+    }
+
+    function hydrateCommentNames() {
+      const username = localStorage.getItem('username');
+      if (!username) return;
+      document.querySelectorAll('.comment-username').forEach(input => {
+        if (!input.value) input.value = username;
+      });
+    }
+
+    function formatDate(value) {
+      if (!value) return 'Unknown date';
+      try {
+        const date = typeof parseUtc === 'function' ? parseUtc(value) : new Date(value);
+        return date.toLocaleString();
+      } catch {
+        return value;
+      }
+    }
+
+    async function submitPost(event) {
+      event.preventDefault();
+      const message = document.getElementById('post-message');
+      const userId = localStorage.getItem('user_id');
+      const payload = {
+        title: document.getElementById('post-title').value.trim(),
+        body: document.getElementById('post-body').value.trim(),
+        username: document.getElementById('post-username').value.trim() || localStorage.getItem('username') || 'Anonymous',
+        user_id: userId ? Number(userId) : null,
+        tags: document.getElementById('post-tags').value.split(',').map(t => t.trim()).filter(Boolean),
+        post_type: document.getElementById('post-type').value,
+        is_highlighted: document.getElementById('post-highlight').checked,
+        is_release: document.getElementById('post-type').value === 'release' || document.getElementById('post-highlight').checked
+      };
+
+      if (!payload.title || !payload.body) {
+        message.textContent = 'Title and content are required.';
+        return;
+      }
+
+      try {
+        const res = await fetch(`${apiBase}/forum/posts`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Unable to create post');
+        message.textContent = 'Post published.';
+        event.target.reset();
+        hydrateAuthorDefaults();
+        await loadPosts();
+      } catch (err) {
+        message.textContent = err.message || 'Request failed. Added to local preview only.';
+        forumState.posts.unshift(normalizePost({
+          ...payload,
+          id: Date.now(),
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          comments: []
+        }));
+        renderPosts();
+      }
+    }
+
+    function handlePostAction(event) {
+      const action = event.target.getAttribute('data-action');
+      if (!action) return;
+      const postId = Number(event.target.getAttribute('data-id'));
+      if (!postId) return;
+
+      if (action === 'edit') {
+        editPost(postId);
+      } else if (action === 'delete') {
+        deletePost(postId);
+      } else if (action === 'highlight') {
+        const flag = event.target.getAttribute('data-flag') === 'on';
+        toggleHighlight(postId, flag);
+      } else if (action === 'release') {
+        const flag = event.target.getAttribute('data-flag') === 'on';
+        toggleRelease(postId, flag);
+      }
+    }
+
+    function handleCommentSubmit(event) {
+      if (!event.target.classList.contains('comment-form')) return;
+      event.preventDefault();
+      const postId = Number(event.target.getAttribute('data-id'));
+      const text = event.target.querySelector('input[name="comment"]').value.trim();
+      const username = event.target.querySelector('input[name="comment-username"]').value.trim() || localStorage.getItem('username') || 'Anonymous';
+      if (!postId || !text) return;
+      addComment(postId, text, username);
+      event.target.reset();
+      hydrateCommentNames();
+    }
+
+    async function addComment(postId, body, username) {
+      try {
+        const res = await fetch(`${apiBase}/forum/posts/${postId}/comments`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            body,
+            username,
+            user_id: localStorage.getItem('user_id') ? Number(localStorage.getItem('user_id')) : null
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Unable to add comment');
+        await loadPosts();
+      } catch (err) {
+        console.warn('Comment save failed, keeping local only:', err);
+        const post = forumState.posts.find(p => p.id === postId);
+        if (post) {
+          post.comments = post.comments || [];
+          post.comments.push(normalizeComment({ body, username, created_at: new Date().toISOString() }));
+          renderPosts();
+        }
+      }
+    }
+
+    async function editPost(postId) {
+      const post = forumState.posts.find(p => p.id === postId);
+      if (!post) return;
+      const newTitle = prompt('Update title', post.title) ?? post.title;
+      const newBody = prompt('Update content', post.body) ?? post.body;
+      if (!newTitle.trim() || !newBody.trim()) return;
+      try {
+        const res = await fetch(`${apiBase}/forum/posts/${postId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: newTitle.trim(),
+            body: newBody.trim(),
+            username: post.username,
+            user_id: post.user_id
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Unable to edit post');
+        await loadPosts();
+      } catch (err) {
+        console.warn('Edit failed, updating local copy only:', err);
+        post.title = newTitle.trim();
+        post.body = newBody.trim();
+        post.updated_at = new Date().toISOString();
+        renderPosts();
+      }
+    }
+
+    async function deletePost(postId) {
+      if (!confirm('Delete this post?')) return;
+      try {
+        const res = await fetch(`${apiBase}/forum/posts/${postId}`, { method: 'DELETE' });
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.detail || 'Unable to delete post');
+        }
+        await loadPosts();
+      } catch (err) {
+        console.warn('Delete failed, removing locally only:', err);
+        forumState.posts = forumState.posts.filter(p => p.id !== postId);
+        renderPosts();
+      }
+    }
+
+    function getAdminCreds() {
+      return {
+        username: document.getElementById('admin-username').value.trim(),
+        password: document.getElementById('admin-password').value
+      };
+    }
+
+    async function toggleHighlight(postId, flag) {
+      await mutatePost(postId, { is_highlighted: flag }, flag ? 'highlighted' : 'unhighlighted');
+    }
+
+    async function toggleRelease(postId, flag) {
+      const release_note = document.getElementById('admin-release-note').value.trim();
+      await mutatePost(postId, { is_release: flag, release_note }, flag ? 'marked as release' : 'cleared as release');
+    }
+
+    async function mutatePost(postId, body, successLabel) {
+      const creds = getAdminCreds();
+      const adminMessage = document.getElementById('admin-message');
+      try {
+        const headers = { 'Content-Type': 'application/json' };
+        if (creds.username && creds.password) {
+          headers['Authorization'] = 'Basic ' + btoa(`${creds.username}:${creds.password}`);
+        }
+        const res = await fetch(`${apiBase}/forum/posts/${postId}`, {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Unable to update post');
+        adminMessage.textContent = `Post ${postId} ${successLabel}.`;
+        await loadPosts();
+      } catch (err) {
+        adminMessage.textContent = err.message || 'Admin action failed.';
+      }
+    }
+
+    async function runAdminAction(action) {
+      const postId = Number(document.getElementById('admin-target-id').value);
+      if (!postId) {
+        document.getElementById('admin-message').textContent = 'Provide a post ID before running admin actions.';
+        return;
+      }
+      if (action === 'highlight') return toggleHighlight(postId, true);
+      if (action === 'unhighlight') return toggleHighlight(postId, false);
+      if (action === 'release') return toggleRelease(postId, true);
+      if (action === 'clear-release') return toggleRelease(postId, false);
+    }
+  </script>
+
+  <style>
+    .post-list {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .post-card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      padding: 1rem 1.1rem;
+      box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+    }
+
+    .post-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.5rem;
+      align-items: flex-start;
+    }
+
+    .post-header h3 {
+      margin: 0 0 0.25rem 0;
+    }
+
+    .post-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      color: #475569;
+      font-size: 0.95rem;
+    }
+
+    .post-badges {
+      display: flex;
+      gap: 0.4rem;
+      flex-wrap: wrap;
+    }
+
+    .post-body {
+      margin: 0.25rem 0 0.5rem 0;
+      color: #0f172a;
+      line-height: 1.5;
+    }
+
+    .release-note {
+      margin: 0.25rem 0 0.5rem 0;
+      padding: 0.5rem 0.75rem;
+      border-radius: 10px;
+      background: #f8fafc;
+      border: 1px dashed #cbd5e1;
+      color: #0f172a;
+    }
+
+    .post-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      margin: 0.2rem 0 0.5rem 0;
+    }
+
+    .tag {
+      background: #eef2ff;
+      color: #1f2937;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 0.82rem;
+    }
+
+    .post-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .post-actions .danger {
+      background: #dc2626;
+      box-shadow: 0 10px 18px rgba(220, 38, 38, 0.2);
+    }
+
+    .comment-block h4 {
+      margin: 0 0 0.35rem 0;
+    }
+
+    .comment-list {
+      list-style: none;
+      padding: 0;
+      margin: 0 0 0.5rem 0;
+      border-top: 1px solid #e2e8f0;
+    }
+
+    .comment {
+      padding: 0.5rem 0;
+      border-bottom: 1px solid #e2e8f0;
+    }
+
+    .comment p {
+      margin: 0.2rem 0 0 0;
+    }
+
+    .comment-meta {
+      display: flex;
+      gap: 0.6rem;
+      font-size: 0.9rem;
+      color: #475569;
+      align-items: center;
+    }
+
+    .comment-form {
+      display: grid;
+      grid-template-columns: 1fr 1fr auto;
+      gap: 0.4rem;
+      align-items: center;
+    }
+
+    .comment-form input {
+      margin: 0;
+    }
+
+    .mini-board {
+      display: grid;
+      gap: 0.6rem;
+    }
+
+    .mini-card {
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 0.75rem 0.85rem;
+      background: #f8fafc;
+    }
+
+    .mini-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.25rem;
+      color: #475569;
+      font-size: 0.9rem;
+    }
+
+    .mini-title {
+      font-weight: 700;
+      color: #0f172a;
+    }
+
+    .mini-body {
+      margin: 0.1rem 0 0.35rem 0;
+      color: #0f172a;
+    }
+
+    .mini-author {
+      color: #475569;
+      font-size: 0.9rem;
+    }
+
+    .badge.success { background: #e8f5e9; color: #166534; }
+    .badge.neutral { background: #e0f2fe; color: #0ea5e9; }
+    .badge.warning { background: #fff4e6; color: #9a3412; }
+
+    .inline-check {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-weight: 600;
+      color: #111827;
+    }
+
+    label.compact {
+      display: inline-flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      font-weight: 600;
+      color: #111827;
+    }
+  </style>
+
+  <footer style="
+    margin-top:40px;
+    padding:15px;
+    text-align:center;
+    font-size:0.85em;
+    color:#555;
+    background-color:#f9f9f9;
+    border-top:1px solid #ddd;
+  ">
+    <p><strong>Disclaimer:</strong> This prediction market is a personal, educational, and experimental project.
+      All trades and balances are <strong>virtual</strong> and have <strong>no monetary value</strong>.
+      It is not intended for profit, investment, or gambling use.
+    </p>
+    <p>
+      Developed for learning purposes using <strong>FastAPI</strong>, <strong>SQLAlchemy</strong>,
+      and <strong>JavaScript</strong>. AI tools, including <strong>ChatGPT</strong>, were used for brainstorming,
+      debugging, and documentation support during development.
+    </p>
+  </footer>
+</body>
+</html>
