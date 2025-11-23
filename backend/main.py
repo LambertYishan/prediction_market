@@ -38,7 +38,7 @@ import tempfile
 
 
 from backend.database import Base, engine, get_db
-from backend.models import User, Market, Bet, PriceHistory
+from backend.models import User, Market, Bet, PriceHistory, Post, Comment
 from backend.market_logic import cost_for_shares, price_yes, price_no
 
 import hashlib

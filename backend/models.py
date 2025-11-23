@@ -111,3 +111,41 @@ class Transaction(Base):
     amount = Column(Float, nullable=False)
     description = Column(String, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
+class Post(Base):
+    """Forum post created by a user or admin."""
+
+    __tablename__ = "posts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    username = Column(String, nullable=False)
+    title = Column(String, nullable=False)
+    body = Column(Text, nullable=False)
+    tags = Column(Text, nullable=True)  # comma-separated tags
+    post_type = Column(String, nullable=False, default="discussion")  # discussion | release | announcement
+    is_highlighted = Column(Boolean, default=False, nullable=False)
+    is_release = Column(Boolean, default=False, nullable=False)
+    release_note = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+    comments = relationship("Comment", back_populates="post", cascade="all, delete-orphan")
+    author = relationship("User", backref="posts", foreign_keys=[user_id])
+
+
+class Comment(Base):
+    """Comment on a forum post."""
+
+    __tablename__ = "comments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    post_id = Column(Integer, ForeignKey("posts.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    username = Column(String, nullable=False)
+    body = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+    post = relationship("Post", back_populates="comments")
+    author = relationship("User", backref="comments", foreign_keys=[user_id])
